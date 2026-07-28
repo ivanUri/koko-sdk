@@ -1,22 +1,14 @@
 import { type ChildProcess } from "node:child_process";
 import { Browser } from "./browser.js";
 import type { BrowserConnectOptions } from "./browser.js";
-export interface VeloraLaunchOptions extends BrowserConnectOptions {
-    /** Profile folder name inside user-data-dir (maps to --browser-profile). */
-    profile?: string;
-    /** Random profile from this list when `profile` is omitted (--browser-profile-pool). */
-    profilePool?: string[];
-    /** Chrome-style user data root (--user-data-dir). */
-    userDataDir?: string;
-    /** Override Cookies.json path (--cookie-jar, deprecated; prefer profile dir). */
-    cookieJar?: string;
-    /** Self-contained fingerprint bundle dir or fingerprint.json (`--profile-snapshot`). */
-    profileSnapshot?: string;
-    /** Portable `.velora-profile` bundle directory (uses `snapshot/` inside). */
+import { type VeloraInstallPreset } from "../velora-install.js";
+import { type EngineCommonOptions } from "./engine-options.js";
+export interface VeloraLaunchOptions extends BrowserConnectOptions, EngineCommonOptions {
+    /** Portable `.velora-profile` bundle directory (uses `fingerprint/` inside). */
     profileBundle?: string;
-    /** Pinned catalog template ref, e.g. `chrome-local-huys-macbook-pro@1`. */
-    templateRef?: string;
-    /** SaaS profile id — hydrate snapshot + session from control plane API. */
+    /** Installed fingerprint id under `browser/fingerprints/`, e.g. `chrome-macos-sonoma`. */
+    fingerprint?: string;
+    /** SaaS profile id — hydrate fingerprint + session from control plane API. */
     profileId?: string;
     /** Control plane base URL when using `profileId`. */
     veloraApi?: string;
@@ -24,8 +16,20 @@ export interface VeloraLaunchOptions extends BrowserConnectOptions {
     apiKey?: string;
     /** CDP port (default: auto free port). */
     port?: number;
+    host?: string;
+    /** Host advertised in /json/version, e.g. when `host` is 0.0.0.0 (`--advertise-host`). */
+    advertiseHost?: string;
+    /** Max simultaneous CDP connections (`--cdp-max-connections`, default 16). */
+    cdpMaxConnections?: number;
+    /** Max pending connections in the accept queue (`--cdp-max-pending-connections`, default 128). */
+    cdpMaxPendingConnections?: number;
     /** Path to velora binary. */
     binary?: string;
+    /**
+     * Local engine build: `homebrew`, `path`, repo/binary path, or custom
+     * name via `$VELORA_INSTALL_<NAME>`. Default / `$VELORA_INSTALL`: auto discovery.
+     */
+    install?: VeloraInstallPreset | string;
     /**
      * Engine install root (`share/velora` from Homebrew, or git checkout).
      * Sets VELORA_ROOT / VELORA_DATA for the child process.
@@ -33,17 +37,18 @@ export interface VeloraLaunchOptions extends BrowserConnectOptions {
     dataRoot?: string;
     /** @deprecated Use `dataRoot`. */
     repoRoot?: string;
-    host?: string;
-    logLevel?: string;
+    /** How long to wait for the CDP endpoint to accept connections (default 15000ms). */
+    launchTimeout?: number;
+    /** Inherit engine stdio instead of discarding it. Useful when debugging startup. */
+    stdio?: "ignore" | "inherit";
 }
 export interface LaunchedVelora {
     browser: Browser;
     endpoint: string;
     port: number;
     profile?: string;
-    /** Resolved `--profile-snapshot` directory passed to velora. */
-    profileSnapshot?: string;
-    templateRef?: string;
+    /** Resolved `--fingerprint-folder` passed to velora, if any. */
+    fingerprintFolder?: string;
     profileId?: string;
     veloraApi?: string;
     /** Temp hydration dir when launched via API (cleaned on close). */
@@ -51,6 +56,8 @@ export interface LaunchedVelora {
     binary: string;
     dataRoot: string;
     installSource: string;
+    /** Full argv handed to the engine — useful for reproducing a run. */
+    args: string[];
     process: ChildProcess;
     close(): Promise<void>;
 }

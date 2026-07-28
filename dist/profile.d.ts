@@ -1,49 +1,64 @@
-export interface TemplateRef {
-    id: string;
-    version: number;
-}
-export interface PreferencesV2 {
-    version: 2;
+/**
+ * Profile preferences written by the engine
+ * (`src/runtime/profile/ProfilePaths.zig`). Version 3 references a
+ * fingerprint id; the engine rejects any other version.
+ */
+export interface PreferencesV3 {
+    version: 3;
     name: string;
-    template: string;
-    template_version: number;
-    snapshot?: string;
+    /** Fingerprint folder id, e.g. `velora`, `chrome-macos-sonoma`. */
+    fingerprint: string;
     created?: string;
 }
-/** Parse `chrome-local-huys-macbook-pro@1` or bare template id (version defaults to 1). */
-export declare function parseTemplateRef(ref: string): TemplateRef;
-export declare function formatTemplateRef(ref: TemplateRef | {
-    id: string;
-    version?: number;
-}): string;
-/** Engine install catalog entry for a pinned template version. */
-export declare function catalogDir(dataRoot: string, templateId: string, version: number): string;
-/** Snapshot directory (contains fingerprint.json + assets/). */
-export declare function catalogSnapshotDir(dataRoot: string, templateRef: string | TemplateRef): string;
-export declare function catalogFingerprintPath(dataRoot: string, templateRef: string | TemplateRef): string;
+/** Folder name of a fingerprint embedded in a profile instance. */
+export declare const FINGERPRINT_DIR = "fingerprint";
+/** Fingerprint definition file inside a fingerprint folder. */
+export declare const FINGERPRINT_FILE = "fingerprint.json";
+/**
+ * Fingerprint id used when a profile folder has no Preferences.json.
+ * Mirrors `ProfileManager.defaultFingerprintForName`.
+ */
+export declare function defaultFingerprintForName(profileName: string): string;
+/** Installed fingerprint folder: `<dataRoot>/browser/fingerprints/<id>/`. */
+export declare function fingerprintDir(dataRoot: string, fingerprintId: string): string;
+export declare function fingerprintDefinitionPath(dataRoot: string, fingerprintId: string): string;
+/** Installed fingerprint ids under `<dataRoot>/browser/fingerprints/`. */
+export declare function listFingerprints(dataRoot: string): string[];
 /** Named browser profile folder inside user-data-dir. */
 export declare function profileDir(userDataDir: string, profileName: string): string;
 export declare function profilePreferencesPath(userDataDir: string, profileName: string): string;
-/** Embedded snapshot inside a profile instance (`snapshot/fingerprint.json`). */
-export declare function profileSnapshotDir(userDataDir: string, profileName: string): string;
+/** Fingerprint embedded in a profile instance (`<profile>/fingerprint/`). */
+export declare function profileFingerprintDir(userDataDir: string, profileName: string): string;
 /** Portable `.velora-profile` bundle directory. */
 export declare function bundleDir(name: string, userDataDir?: string): string;
-/** Resolve `snapshot/` inside a bundle (or the bundle root when flat). */
-export declare function bundleSnapshotDir(bundlePath: string): string;
-export declare function readPreferences(userDataDir: string, profileName: string): PreferencesV2 | null;
-export interface ResolveSnapshotOptions {
+/**
+ * Fingerprint folder inside an exported bundle.
+ * `velora profile export` writes `<bundle>/fingerprint/fingerprint.json`;
+ * flat bundles (fingerprint.json at the root) are accepted too.
+ */
+export declare function bundleFingerprintDir(bundlePath: string): string;
+export declare function readPreferences(userDataDir: string, profileName: string): PreferencesV3 | null;
+export interface ResolveFingerprintOptions {
+    /** Engine install root that owns `browser/fingerprints/`. */
     dataRoot: string;
     profile?: string;
     userDataDir?: string;
-    /** Explicit `--profile-snapshot` path (bundle dir or fingerprint.json). */
-    profileSnapshot?: string;
+    /** Explicit fingerprint folder (`--fingerprint-folder`). */
+    fingerprintFolder?: string;
     /** Portable `.velora-profile` bundle directory. */
     profileBundle?: string;
-    /** Pinned catalog ref, e.g. `chrome-local-huys-macbook-pro@1`. */
-    templateRef?: string;
+    /** Installed fingerprint id under `browser/fingerprints/`. */
+    fingerprint?: string;
 }
 /**
- * Resolve fingerprint snapshot directory for `velora serve --profile-snapshot`.
- * Order: explicit snapshot → bundle → profile instance snapshot → catalog (templateRef or prefs).
+ * Resolve the folder to pass to `velora --fingerprint-folder`.
+ *
+ * Order: explicit folder → bundle → profile-embedded → installed fingerprint
+ * (explicit id, else the id recorded in the profile's Preferences.json).
+ * Returns undefined when the engine should resolve the fingerprint itself
+ * from the profile's Preferences.json.
+ *
+ * The engine rejects a path ending in `.json` (`FingerprintMustBeFolder`), so
+ * a definition file is normalised to its containing folder.
  */
-export declare function resolveProfileSnapshot(options: ResolveSnapshotOptions): string | undefined;
+export declare function resolveFingerprintFolder(options: ResolveFingerprintOptions): string | undefined;

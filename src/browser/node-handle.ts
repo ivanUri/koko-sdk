@@ -1,10 +1,10 @@
-import type { LPClient } from "./lp-client.js";
+import type { VeloraClient } from "./lp-client.js";
 import type { GotoWaitOptions } from "./waiter.js";
 
 /** Minimal page surface to avoid import cycles. */
 export interface NodeHandlePage {
   init(): Promise<void>;
-  readonly agent: LPClient;
+  readonly agent: VeloraClient;
   waitForNavigation(options?: GotoWaitOptions): Promise<void>;
 }
 export interface NodeActionOptions {

@@ -40,7 +40,8 @@ export interface HydrateRemoteProfileOptions extends ProfileApiOptions {
 export interface HydratedRemoteProfile {
     profileId: string;
     workDir: string;
-    snapshotDir: string;
+    /** Downloaded fingerprint folder, passed as `--fingerprint-folder`. */
+    fingerprintDir: string;
     userDataDir: string;
     profileDir: string;
     template: string;
@@ -52,8 +53,8 @@ export declare function fetchRemoteProfile(options: ProfileApiOptions & {
     profileId: string;
 }): Promise<RemoteProfileRecord>;
 /**
- * Download snapshot + optional session from mock/production API into a temp work dir.
- * Returns paths suitable for `velora serve --profile-snapshot` and `--user-data-dir`.
+ * Download fingerprint + optional session from mock/production API into a temp work dir.
+ * Returns paths suitable for `velora serve --fingerprint-folder` and `--user-data-dir`.
  */
 export declare function hydrateRemoteProfile(options: HydrateRemoteProfileOptions): Promise<HydratedRemoteProfile>;
 /** Upload session state back to control plane (cookies from profile dir). */

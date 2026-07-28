@@ -4,9 +4,10 @@ import { PageWaiter } from "./waiter.js";
 import { NetworkTracker } from "./network.js";
 import { RouteRegistry } from "./route.js";
 import { Locator } from "./locator.js";
-import { LPClient } from "./lp-client.js";
+import { VeloraClient } from "./lp-client.js";
 import { NodeHandle } from "./node-handle.js";
 import { searchGoogle } from "./google-search.js";
+import { Keyboard, Mouse } from "./input.js";
 const DEFAULT_TTFX = `(() => {
   const el = document.querySelector("#firstHeading") || document.querySelector("h1");
   return el?.textContent?.trim() || null;
@@ -31,6 +32,8 @@ export class Page {
     session;
     network;
     waiter;
+    keyboard;
+    mouse;
     /** Velora LP domain — AI extraction and backend-node agent actions. */
     agent;
     routes;
@@ -42,7 +45,9 @@ export class Page {
         this.routes = new RouteRegistry(session);
         this.network = new NetworkTracker(session);
         this.waiter = new PageWaiter(session, this.network);
-        this.agent = new LPClient(this, session);
+        this.keyboard = new Keyboard(session);
+        this.mouse = new Mouse(session);
+        this.agent = new VeloraClient(this, session);
     }
     /** Register cleanup when page.close() runs (used by Browser/Context). */
     onClose(hook) {
@@ -62,7 +67,6 @@ export class Page {
         });
         await this.session.send("Page.enable").catch(() => undefined);
         await this.session.send("Runtime.enable").catch(() => undefined);
-        await this.network.enable();
         const tree = await this.session.send("Page.getFrameTree").catch(() => undefined);
         this.mainFrameId = tree?.frameTree?.frame?.id ?? this.mainFrameId;
     }
@@ -84,21 +88,39 @@ export class Page {
         const expression = typeof expressionOrFunction === "function"
             ? `(${expressionOrFunction.toString()})()`
             : expressionOrFunction;
-        const result = await this.session.send("Runtime.evaluate", {
-            expression,
-            returnByValue: true,
-            awaitPromise: true,
-        }, options.timeout);
-        if (result.exceptionDetails) {
-            const ex = result.exceptionDetails;
-            const desc = ex?.exception?.description ?? ex?.exception?.value ?? ex?.text ?? "Runtime.evaluate failed";
-            throw new ProtocolError(typeof desc === "string" ? desc : JSON.stringify(desc), {
-                method: "Runtime.evaluate",
-                sessionId: this.session.sessionId,
-                payload: ex,
-            });
+        // After clean-slate re-nav, CDP may briefly lack a default execution context.
+        // One cheap retry avoids empty title/snapshot without slowing the happy path.
+        const maxAttempts = 2;
+        let lastErr;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                if (attempt > 0)
+                    await delay(50);
+                const result = await this.session.send("Runtime.evaluate", {
+                    expression,
+                    returnByValue: true,
+                    awaitPromise: true,
+                }, options.timeout);
+                if (result.exceptionDetails) {
+                    const ex = result.exceptionDetails;
+                    const desc = ex?.exception?.description ?? ex?.exception?.value ?? ex?.text ?? "Runtime.evaluate failed";
+                    throw new ProtocolError(typeof desc === "string" ? desc : JSON.stringify(desc), {
+                        method: "Runtime.evaluate",
+                        sessionId: this.session.sessionId,
+                        payload: ex,
+                    });
+                }
+                return result.result?.value;
+            }
+            catch (err) {
+                lastErr = err;
+                const msg = err instanceof Error ? err.message : String(err);
+                const retryable = /execution context|Cannot find default|context was destroyed|Inspected target/i.test(msg);
+                if (!retryable || attempt === maxAttempts - 1)
+                    throw err;
+            }
         }
-        return result.result?.value;
+        throw lastErr;
     }
     /** Single round-trip HTML snapshot (doctype + outerHTML). */
     async content() {

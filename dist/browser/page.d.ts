@@ -5,8 +5,9 @@ import { NetworkTracker } from "./network.js";
 import { type RouteHandler, type RoutePattern } from "./route.js";
 import { Locator, type GetByRoleOptions, type GetByTextOptions, type LocatorOptions } from "./locator.js";
 import type { ActionOptions, FillOptions, SelectOptions } from "./actions.js";
-import { LPClient } from "./lp-client.js";
+import { VeloraClient } from "./lp-client.js";
 import { NodeHandle } from "./node-handle.js";
+import { Keyboard, Mouse } from "./input.js";
 import type { DetectedForm, DialogOptions, FindElementOptions, GoogleExtractResult, GoogleSearchOptions, InteractiveElement, MarkdownOptions, NodeDetails, SemanticNode, SemanticTreeOptions, StructuredData } from "./lp-types.js";
 export interface EvaluateOptions {
     timeout?: number;
@@ -56,8 +57,10 @@ export declare class Page {
     readonly session: CDPSession;
     readonly network: NetworkTracker;
     readonly waiter: PageWaiter;
+    readonly keyboard: Keyboard;
+    readonly mouse: Mouse;
     /** Velora LP domain — AI extraction and backend-node agent actions. */
-    readonly agent: LPClient;
+    readonly agent: VeloraClient;
     private readonly routes;
     private initialized;
     private mainFrameId?;

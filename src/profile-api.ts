@@ -50,7 +50,8 @@ export interface HydrateRemoteProfileOptions extends ProfileApiOptions {
 export interface HydratedRemoteProfile {
   profileId: string;
   workDir: string;
-  snapshotDir: string;
+  /** Downloaded fingerprint folder, passed as `--fingerprint-folder`. */
+  fingerprintDir: string;
   userDataDir: string;
   profileDir: string;
   template: string;
@@ -146,8 +147,8 @@ async function downloadSession(
 }
 
 /**
- * Download snapshot + optional session from mock/production API into a temp work dir.
- * Returns paths suitable for `velora serve --profile-snapshot` and `--user-data-dir`.
+ * Download fingerprint + optional session from mock/production API into a temp work dir.
+ * Returns paths suitable for `velora serve --fingerprint-folder` and `--user-data-dir`.
  */
 export async function hydrateRemoteProfile(
   options: HydrateRemoteProfileOptions,
@@ -158,27 +159,26 @@ export async function hydrateRemoteProfile(
   if (existsSync(workDir)) rmSync(workDir, { recursive: true, force: true });
   mkdirSync(workDir, { recursive: true });
 
-  const snapshotDir = join(workDir, "snapshot");
+  const fingerprintDir = join(workDir, "fingerprint");
   const userDataDir = join(workDir, "user-data");
   const profileDir = join(userDataDir, record.id);
 
-  await downloadSnapshot(record, snapshotDir, options.apiKey);
+  await downloadSnapshot(record, fingerprintDir, options.apiKey);
   mkdirSync(profileDir, { recursive: true });
   await downloadSession(record, profileDir, options.apiKey).catch(() => false);
 
+  // Preferences v3 is what the engine parses; anything else fails with
+  // MissingField before the CDP server starts listening.
   writeFileSync(join(profileDir, "Preferences.json"), `${JSON.stringify({
-    version: 2,
+    version: 3,
     name: record.id,
-    template: record.template,
-    template_version: record.template_version,
-    snapshot: "snapshot",
-    source: "velora-api",
+    fingerprint: record.template,
   }, null, 2)}\n`);
 
   return {
     profileId: record.id,
     workDir,
-    snapshotDir,
+    fingerprintDir,
     userDataDir,
     profileDir,
     template: record.template,

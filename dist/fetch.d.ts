@@ -1,4 +1,5 @@
 import type { ExtractResult } from "./browser/page.js";
+import type { LogLevel } from "./browser/engine-options.js";
 import type { WaitUntil } from "./browser/waiter.js";
 export type FetchFormat = "html" | "md" | "json";
 export interface FetchOptions {
@@ -17,15 +18,21 @@ export interface FetchOptions {
     profile?: string;
     profilePool?: string[];
     userDataDir?: string;
-    profileSnapshot?: string;
+    /** Self-contained fingerprint folder (`--fingerprint-folder`). */
+    fingerprintFolder?: string;
+    /** Portable `.velora-profile` bundle directory. */
     profileBundle?: string;
-    templateRef?: string;
+    /** Installed fingerprint id under `browser/fingerprints/`. */
+    fingerprint?: string;
     cookieJar?: string;
+    /** Outbound proxy for the launched engine. */
+    httpProxy?: string;
     binary?: string;
+    install?: string;
     dataRoot?: string;
     /** @deprecated Use `dataRoot`. */
     repoRoot?: string;
-    logLevel?: string;
+    logLevel?: LogLevel;
 }
 export interface FetchResult {
     url: string;

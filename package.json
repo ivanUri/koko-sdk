@@ -1,7 +1,7 @@
 {
   "name": "velora-sdk",
-  "version": "0.1.1",
-  "description": "TypeScript CDP SDK for Velora — connect, launch, and agent APIs over WebSocket.",
+  "version": "0.2.0",
+  "description": "TypeScript CDP SDK for Velora — connect, launch, profile, and agent APIs over WebSocket.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -36,17 +36,23 @@
     "build": "tsc -p tsconfig.json",
     "prepare": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "npm run build",
     "example:crawl": "node examples/crawl-wikipedia.mjs --launch --limit 8 --concurrency 2",
-    "example:agent": "node examples/agent-semantic.mjs --launch"
+    "example:agent": "node examples/agent-semantic.mjs --launch",
+    "example:dump": "node examples/dump-markdown.mjs https://example.com"
   },
   "dependencies": {
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/jsdom": "^28.0.3",
     "@types/node": "^22.10.2",
     "@types/ws": "^8.5.13",
-    "typescript": "^5.7.2"
+    "jsdom": "^29.1.1",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=20"

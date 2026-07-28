@@ -1,33 +1,33 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { defaultUserDataDir } from "./profile-paths.js";
-/** Parse `chrome-local-huys-macbook-pro@1` or bare template id (version defaults to 1). */
-export function parseTemplateRef(ref) {
-    const at = ref.lastIndexOf("@");
-    if (at === -1)
-        return { id: ref, version: 1 };
-    const id = ref.slice(0, at);
-    const version = Number(ref.slice(at + 1));
-    if (!id || !Number.isFinite(version) || version < 1) {
-        throw new Error(`Invalid template ref: ${ref}`);
-    }
-    return { id, version };
+/** Folder name of a fingerprint embedded in a profile instance. */
+export const FINGERPRINT_DIR = "fingerprint";
+/** Fingerprint definition file inside a fingerprint folder. */
+export const FINGERPRINT_FILE = "fingerprint.json";
+/**
+ * Fingerprint id used when a profile folder has no Preferences.json.
+ * Mirrors `ProfileManager.defaultFingerprintForName`.
+ */
+export function defaultFingerprintForName(profileName) {
+    return profileName === "Default" ? "velora" : profileName;
 }
-export function formatTemplateRef(ref) {
-    const version = ref.version ?? 1;
-    return version === 1 ? ref.id : `${ref.id}@${version}`;
+/** Installed fingerprint folder: `<dataRoot>/browser/fingerprints/<id>/`. */
+export function fingerprintDir(dataRoot, fingerprintId) {
+    return join(dataRoot, "browser", "fingerprints", fingerprintId);
 }
-/** Engine install catalog entry for a pinned template version. */
-export function catalogDir(dataRoot, templateId, version) {
-    return join(dataRoot, "browser", "catalog", templateId, String(version));
+export function fingerprintDefinitionPath(dataRoot, fingerprintId) {
+    return join(fingerprintDir(dataRoot, fingerprintId), FINGERPRINT_FILE);
 }
-/** Snapshot directory (contains fingerprint.json + assets/). */
-export function catalogSnapshotDir(dataRoot, templateRef) {
-    const ref = typeof templateRef === "string" ? parseTemplateRef(templateRef) : templateRef;
-    return catalogDir(dataRoot, ref.id, ref.version);
-}
-export function catalogFingerprintPath(dataRoot, templateRef) {
-    return join(catalogSnapshotDir(dataRoot, templateRef), "fingerprint.json");
+/** Installed fingerprint ids under `<dataRoot>/browser/fingerprints/`. */
+export function listFingerprints(dataRoot) {
+    const root = join(dataRoot, "browser", "fingerprints");
+    if (!existsSync(root))
+        return [];
+    return readdirSync(root, { withFileTypes: true })
+        .filter((e) => e.isDirectory() && existsSync(join(root, e.name, FINGERPRINT_FILE)))
+        .map((e) => e.name)
+        .sort();
 }
 /** Named browser profile folder inside user-data-dir. */
 export function profileDir(userDataDir, profileName) {
@@ -36,63 +36,72 @@ export function profileDir(userDataDir, profileName) {
 export function profilePreferencesPath(userDataDir, profileName) {
     return join(profileDir(userDataDir, profileName), "Preferences.json");
 }
-/** Embedded snapshot inside a profile instance (`snapshot/fingerprint.json`). */
-export function profileSnapshotDir(userDataDir, profileName) {
-    return join(profileDir(userDataDir, profileName), "snapshot");
+/** Fingerprint embedded in a profile instance (`<profile>/fingerprint/`). */
+export function profileFingerprintDir(userDataDir, profileName) {
+    return join(profileDir(userDataDir, profileName), FINGERPRINT_DIR);
 }
 /** Portable `.velora-profile` bundle directory. */
 export function bundleDir(name, userDataDir = defaultUserDataDir()) {
     return join(userDataDir, `${name}.velora-profile`);
 }
-/** Resolve `snapshot/` inside a bundle (or the bundle root when flat). */
-export function bundleSnapshotDir(bundlePath) {
-    const nested = join(bundlePath, "snapshot");
-    if (existsSync(join(nested, "fingerprint.json")))
+/**
+ * Fingerprint folder inside an exported bundle.
+ * `velora profile export` writes `<bundle>/fingerprint/fingerprint.json`;
+ * flat bundles (fingerprint.json at the root) are accepted too.
+ */
+export function bundleFingerprintDir(bundlePath) {
+    const nested = join(bundlePath, FINGERPRINT_DIR);
+    if (existsSync(join(nested, FINGERPRINT_FILE)))
         return nested;
-    if (existsSync(join(bundlePath, "fingerprint.json")))
+    if (existsSync(join(bundlePath, FINGERPRINT_FILE)))
         return bundlePath;
-    throw new Error(`Bundle missing fingerprint.json: ${bundlePath}`);
+    throw new Error(`Bundle missing ${FINGERPRINT_DIR}/${FINGERPRINT_FILE}: ${bundlePath}`);
 }
 export function readPreferences(userDataDir, profileName) {
     const path = profilePreferencesPath(userDataDir, profileName);
     if (!existsSync(path))
         return null;
     const prefs = JSON.parse(readFileSync(path, "utf8"));
-    return prefs.version === 2 ? prefs : null;
+    return prefs.version === 3 && prefs.fingerprint ? prefs : null;
 }
 /**
- * Resolve fingerprint snapshot directory for `velora serve --profile-snapshot`.
- * Order: explicit snapshot → bundle → profile instance snapshot → catalog (templateRef or prefs).
+ * Resolve the folder to pass to `velora --fingerprint-folder`.
+ *
+ * Order: explicit folder → bundle → profile-embedded → installed fingerprint
+ * (explicit id, else the id recorded in the profile's Preferences.json).
+ * Returns undefined when the engine should resolve the fingerprint itself
+ * from the profile's Preferences.json.
+ *
+ * The engine rejects a path ending in `.json` (`FingerprintMustBeFolder`), so
+ * a definition file is normalised to its containing folder.
  */
-export function resolveProfileSnapshot(options) {
-    if (options.profileSnapshot) {
-        const p = options.profileSnapshot;
-        if (existsSync(join(p, "fingerprint.json")))
+export function resolveFingerprintFolder(options) {
+    if (options.fingerprintFolder) {
+        const p = options.fingerprintFolder;
+        if (existsSync(join(p, FINGERPRINT_FILE)))
             return p;
-        if (p.endsWith("fingerprint.json") && existsSync(p))
+        if (p.endsWith(FINGERPRINT_FILE) && existsSync(p))
             return join(p, "..");
-        throw new Error(`profileSnapshot not found: ${p}`);
+        throw new Error(`fingerprintFolder not found: ${p}`);
     }
     if (options.profileBundle) {
-        return bundleSnapshotDir(options.profileBundle);
+        return bundleFingerprintDir(options.profileBundle);
     }
     const userDataDir = options.userDataDir ?? defaultUserDataDir();
     if (options.profile) {
-        const embedded = profileSnapshotDir(userDataDir, options.profile);
-        if (existsSync(join(embedded, "fingerprint.json")))
+        const embedded = profileFingerprintDir(userDataDir, options.profile);
+        if (existsSync(join(embedded, FINGERPRINT_FILE)))
             return embedded;
-        const prefs = readPreferences(userDataDir, options.profile);
-        if (prefs) {
-            const catalog = catalogDir(options.dataRoot, prefs.template, prefs.template_version);
-            if (existsSync(join(catalog, "fingerprint.json")))
-                return catalog;
-        }
     }
-    if (options.templateRef) {
-        const catalog = catalogSnapshotDir(options.dataRoot, options.templateRef);
-        if (existsSync(join(catalog, "fingerprint.json")))
-            return catalog;
-        throw new Error(`Catalog snapshot not found: ${catalog}`);
+    const id = options.fingerprint
+        ?? (options.profile ? readPreferences(userDataDir, options.profile)?.fingerprint : undefined);
+    if (id) {
+        const installed = fingerprintDir(options.dataRoot, id);
+        if (existsSync(join(installed, FINGERPRINT_FILE)))
+            return installed;
+        if (options.fingerprint) {
+            throw new Error(`Fingerprint not installed: ${installed}`);
+        }
     }
     return undefined;
 }

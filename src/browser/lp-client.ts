@@ -8,13 +8,29 @@ import type {
   MarkdownOptions,
   NodeDetails,
   ScrollOptions,
+  SelectorActionOptions,
   SemanticNode,
   SemanticTreeOptions,
   StructuredData,
 } from "./lp-types.js";
 import type { Page } from "./page.js";
 
-export class LPClient {
+/**
+ * CDP domain served by the engine (`src/protocols/cdp/domains/velora.zig`).
+ * Anything else returns UnknownDomain.
+ */
+const DOMAIN = "Velora";
+
+const method = (name: string): string => `${DOMAIN}.${name}`;
+
+/**
+ * Velora-namespaced semantic and locator API.
+ *
+ * Selector actions (`clickSelector`, `fillSelector`, `selectOptionSelector`)
+ * keep selector polling, SPA frame changes and actionability inside the engine,
+ * so callers do not reproduce visibility/retry policy with Runtime.evaluate.
+ */
+export class VeloraClient {
   constructor(
     private readonly page: Page,
     private readonly session: CDPSession,
@@ -22,7 +38,7 @@ export class LPClient {
 
   async markdown(options: MarkdownOptions = {}): Promise<string> {
     const result = await this.session.send<{ markdown: string }>(
-      "LP.getMarkdown",
+      method("getMarkdown"),
       options.nodeId != null ? { nodeId: options.nodeId } : {},
       options.timeout,
     );
@@ -38,7 +54,7 @@ export class LPClient {
     if (options.maxDepth != null) params.maxDepth = options.maxDepth;
 
     const result = await this.session.send<{ semanticTree: string | SemanticNode }>(
-      "LP.getSemanticTree",
+      method("getSemanticTree"),
       params,
       options.timeout,
     );
@@ -47,7 +63,7 @@ export class LPClient {
 
   async getInteractiveElements(options: { nodeId?: number; timeout?: number } = {}): Promise<InteractiveElement[]> {
     const result = await this.session.send<{ elements: InteractiveElement[] }>(
-      "LP.getInteractiveElements",
+      method("getInteractiveElements"),
       options.nodeId != null ? { nodeId: options.nodeId } : {},
       options.timeout,
     );
@@ -56,7 +72,7 @@ export class LPClient {
 
   async getStructuredData(options: { timeout?: number } = {}): Promise<StructuredData> {
     const result = await this.session.send<{ structuredData: StructuredData }>(
-      "LP.getStructuredData",
+      method("getStructuredData"),
       {},
       options.timeout,
     );
@@ -65,7 +81,7 @@ export class LPClient {
 
   async detectForms(options: { timeout?: number } = {}): Promise<DetectedForm[]> {
     const result = await this.session.send<{ forms: DetectedForm[] }>(
-      "LP.detectForms",
+      method("detectForms"),
       {},
       options.timeout,
     );
@@ -74,7 +90,7 @@ export class LPClient {
 
   async getNodeDetails(backendNodeId: number, options: { timeout?: number } = {}): Promise<NodeDetails> {
     const result = await this.session.send<{ nodeDetails: NodeDetails }>(
-      "LP.getNodeDetails",
+      method("getNodeDetails"),
       { backendNodeId },
       options.timeout,
     );
@@ -110,27 +126,62 @@ export class LPClient {
 
   async waitForSelectorNode(selector: string, options: { timeout?: number } = {}): Promise<number> {
     const result = await this.session.send<{ backendNodeId: number }>(
-      "LP.waitForSelector",
+      method("waitForSelector"),
       { selector, timeout: options.timeout ?? 5000 },
       options.timeout,
     );
     return result.backendNodeId;
   }
 
+  /**
+   * Pre-arm the next window.alert/confirm/prompt response.
+   *
+   * Velora dialogs do not suspend V8, so this must be called *before* the
+   * script that opens the dialog — a reactive Page.handleJavaScriptDialog
+   * would arrive after JS already returned.
+   */
   async armDialog(options: DialogOptions): Promise<void> {
     await this.session.send(
-      "LP.handleJavaScriptDialog",
+      method("handleJavaScriptDialog"),
       { accept: options.accept, promptText: options.promptText },
       options.timeout,
     );
   }
 
   async clickNode(backendNodeId: number, options: { timeout?: number } = {}): Promise<void> {
-    await this.session.send("LP.clickNode", { backendNodeId }, options.timeout);
+    await this.session.send(method("clickNode"), { backendNodeId }, options.timeout);
   }
 
   async fillNode(backendNodeId: number, text: string, options: { timeout?: number } = {}): Promise<void> {
-    await this.session.send("LP.fillNode", { backendNodeId, text }, options.timeout);
+    await this.session.send(method("fillNode"), { backendNodeId, text }, options.timeout);
+  }
+
+  async clickSelector(selector: string, options: SelectorActionOptions = {}): Promise<void> {
+    await this.session.send(
+      method("clickSelector"),
+      { selector, timeout: options.selectorTimeout ?? 5000 },
+      options.timeout,
+    );
+  }
+
+  async fillSelector(selector: string, text: string, options: SelectorActionOptions = {}): Promise<void> {
+    await this.session.send(
+      method("fillSelector"),
+      { selector, text, timeout: options.selectorTimeout ?? 5000 },
+      options.timeout,
+    );
+  }
+
+  async selectOptionSelector(
+    selector: string,
+    value: string,
+    options: SelectorActionOptions = {},
+  ): Promise<void> {
+    await this.session.send(
+      method("selectOptionSelector"),
+      { selector, value, timeout: options.selectorTimeout ?? 5000 },
+      options.timeout,
+    );
   }
 
   async scrollNode(backendNodeId: number | undefined, options: ScrollOptions = {}): Promise<void> {
@@ -138,27 +189,30 @@ export class LPClient {
     if (backendNodeId != null) params.backendNodeId = backendNodeId;
     if (options.x != null) params.x = options.x;
     if (options.y != null) params.y = options.y;
-    await this.session.send("LP.scrollNode", params, options.timeout);
+    await this.session.send(method("scrollNode"), params, options.timeout);
   }
 
   async hoverNode(backendNodeId: number, options: { timeout?: number } = {}): Promise<void> {
-    await this.session.send("LP.hoverNode", { backendNodeId }, options.timeout);
+    await this.session.send(method("hoverNode"), { backendNodeId }, options.timeout);
   }
 
   async pressKey(key: string, options: { backendNodeId?: number; timeout?: number } = {}): Promise<void> {
     const params: Record<string, unknown> = { key };
     if (options.backendNodeId != null) params.backendNodeId = options.backendNodeId;
-    await this.session.send("LP.pressKey", params, options.timeout);
+    await this.session.send(method("pressKey"), params, options.timeout);
   }
 
   async selectOptionNode(backendNodeId: number, value: string, options: { timeout?: number } = {}): Promise<void> {
-    await this.session.send("LP.selectOptionNode", { backendNodeId, value }, options.timeout);
+    await this.session.send(method("selectOptionNode"), { backendNodeId, value }, options.timeout);
   }
 
   async setCheckedNode(backendNodeId: number, checked: boolean, options: { timeout?: number } = {}): Promise<void> {
-    await this.session.send("LP.setCheckedNode", { backendNodeId, checked }, options.timeout);
+    await this.session.send(method("setCheckedNode"), { backendNodeId, checked }, options.timeout);
   }
 }
+
+/** @deprecated Renamed to `VeloraClient`; the engine domain is `Velora`, not `LP`. */
+export { VeloraClient as LPClient };
 
 function equalsIgnoreCase(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();

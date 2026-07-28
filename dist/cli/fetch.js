@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 import { fetch } from "../fetch.js";
+const LOG_LEVELS = ["debug", "info", "warn", "error", "fatal"];
+function parseLogLevel(value) {
+    if (LOG_LEVELS.includes(value))
+        return value;
+    throw new Error(`Unknown log level: ${value} (expected ${LOG_LEVELS.join(", ")})`);
+}
 function parseArgs(argv) {
     let url;
     let format = "html";
@@ -11,9 +17,10 @@ function parseArgs(argv) {
     let logger = false;
     let profile;
     let userDataDir;
-    let profileSnapshot;
+    let fingerprintFolder;
     let profileBundle;
-    let templateRef;
+    let fingerprint;
+    let httpProxy;
     let dataRoot;
     let logLevel;
     for (let i = 0; i < argv.length; i += 1) {
@@ -51,22 +58,24 @@ function parseArgs(argv) {
             case "--user-data-dir":
                 userDataDir = next();
                 break;
-            case "--profile-snapshot":
-                profileSnapshot = next();
+            case "--fingerprint-folder":
+                fingerprintFolder = next();
                 break;
             case "--profile-bundle":
                 profileBundle = next();
                 break;
-            case "--template":
-            case "--template-ref":
-                templateRef = next();
+            case "--fingerprint":
+                fingerprint = next();
+                break;
+            case "--http-proxy":
+                httpProxy = next();
                 break;
             case "--data-root":
             case "--velora-root":
                 dataRoot = next();
                 break;
             case "--log-level":
-                logLevel = next();
+                logLevel = parseLogLevel(next());
                 break;
             case "--format": {
                 const fmt = next();
@@ -102,7 +111,8 @@ function parseArgs(argv) {
         usage(1);
     return {
         url, format, launch, output, endpoint, waitUntil, timeout, logger,
-        profile, userDataDir, profileSnapshot, profileBundle, templateRef, dataRoot, logLevel,
+        profile, userDataDir, fingerprintFolder, profileBundle, fingerprint,
+        httpProxy, dataRoot, logLevel,
     };
 }
 function usage(exitCode) {
@@ -110,8 +120,10 @@ function usage(exitCode) {
 
   velora-fetch https://example.com --launch -o page.html
   velora-fetch https://example.com --launch --md -o page.md
-  velora-fetch https://example.com --launch --profile chrome-local-huys-macbook-pro
-  velora-fetch https://example.com --launch --template chrome-local-huys-macbook-pro@1
+  velora-fetch https://example.com --launch --profile huynew
+  velora-fetch https://example.com --launch --fingerprint chrome-macos-sonoma
+  velora-fetch https://example.com --launch --profile-bundle ~/my.velora-profile
+  velora-fetch https://example.com --launch --http-proxy http://user:pass@host:8080
 `);
     process.exit(exitCode);
 }
@@ -127,9 +139,10 @@ async function main() {
         output: args.output,
         profile: args.profile,
         userDataDir: args.userDataDir,
-        profileSnapshot: args.profileSnapshot,
+        fingerprintFolder: args.fingerprintFolder,
         profileBundle: args.profileBundle,
-        templateRef: args.templateRef,
+        fingerprint: args.fingerprint,
+        httpProxy: args.httpProxy,
         dataRoot: args.dataRoot,
         logLevel: args.logLevel,
     });

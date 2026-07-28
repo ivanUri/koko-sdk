@@ -4,8 +4,9 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Browser } from "./browser.js";
 import { cleanupHydratedProfile, flushRemoteSession, hydrateRemoteProfile, } from "../profile-api.js";
-import { resolveProfileSnapshot } from "../profile.js";
+import { FINGERPRINT_FILE, fingerprintDir, resolveFingerprintFolder, } from "../profile.js";
 import { resolveVeloraInstall } from "../velora-install.js";
+import { toEngineArgs } from "./engine-options.js";
 import { delay } from "../utils/timeout.js";
 import { ProtocolError } from "../cdp/errors.js";
 function pickProfile(options) {
@@ -29,25 +30,25 @@ async function getFreePort() {
         });
     });
 }
-async function waitForCdp(endpoint, proc, timeoutMs = 15_000) {
+async function waitForCdp(endpoint, proc, timeoutMs) {
     const started = Date.now();
+    const exited = () => new ProtocolError(`velora exited before CDP was ready (code ${proc.exitCode}). `
+        + `Re-run with stdio: "inherit" to see why.`);
     while (Date.now() - started < timeoutMs) {
-        if (proc.exitCode != null) {
-            throw new ProtocolError(`velora exited before CDP was ready (code ${proc.exitCode}). Try: brew upgrade velora`);
-        }
+        if (proc.exitCode != null)
+            throw exited();
         try {
             const res = await fetch(`${endpoint}/json/version`);
             if (res.ok)
                 return;
         }
         catch {
-            // retry
+            // endpoint not listening yet
         }
         await delay(100);
     }
-    if (proc.exitCode != null) {
-        throw new ProtocolError(`velora exited before CDP was ready (code ${proc.exitCode}). Try: brew upgrade velora`);
-    }
+    if (proc.exitCode != null)
+        throw exited();
     throw new ProtocolError(`CDP endpoint not ready: ${endpoint}`, { timeout: timeoutMs });
 }
 export async function launchVelora(options = {}) {
@@ -58,7 +59,7 @@ export async function launchVelora(options = {}) {
     let hydrated;
     let profile = pickProfile(options);
     let userDataDir = options.userDataDir;
-    let profileSnapshot;
+    let fingerprintFolder;
     const profileId = options.profileId;
     const veloraApi = options.veloraApi ?? (profileId ? process.env.VELORA_API_URL : undefined);
     const apiKey = options.apiKey ?? process.env.VELORA_API_KEY;
@@ -66,52 +67,57 @@ export async function launchVelora(options = {}) {
         if (!veloraApi) {
             throw new ProtocolError("profileId requires veloraApi (or VELORA_API_URL)");
         }
-        hydrated = await hydrateRemoteProfile({
-            veloraApi,
-            profileId,
-            apiKey,
-        });
+        hydrated = await hydrateRemoteProfile({ veloraApi, profileId, apiKey });
         profile = profileId;
         userDataDir = hydrated.userDataDir;
-        profileSnapshot = hydrated.snapshotDir;
+        fingerprintFolder = hydrated.fingerprintDir;
     }
-    else if (options.profileSnapshot
-        || options.profileBundle
-        || options.templateRef) {
-        profileSnapshot = resolveProfileSnapshot({
+    else {
+        fingerprintFolder = resolveFingerprintFolder({
             dataRoot,
             profile,
             userDataDir,
-            profileSnapshot: options.profileSnapshot,
+            fingerprintFolder: options.fingerprintFolder,
             profileBundle: options.profileBundle,
-            templateRef: options.templateRef,
+            fingerprint: options.fingerprint,
         });
-    }
-    else {
-        profile = profile ?? "Default";
-        const veloraJson = join(dataRoot, "browser/velora.json");
-        if (!existsSync(veloraJson)) {
-            throw new ProtocolError(`Default profile not found: ${veloraJson}`);
+        // No profile and nothing to resolve from: fall back to the engine's own
+        // built-in identity so a bare launchVelora() works out of the box.
+        if (!fingerprintFolder && !profile) {
+            profile = "Default";
+            const builtin = fingerprintDir(dataRoot, "velora");
+            if (!existsSync(join(builtin, FINGERPRINT_FILE))) {
+                throw new ProtocolError(`Built-in fingerprint not found: ${join(builtin, FINGERPRINT_FILE)}. `
+                    + "Pass fingerprint, fingerprintFolder, or profileBundle.");
+            }
+            fingerprintFolder = builtin;
         }
-        profileSnapshot = veloraJson;
     }
     const args = ["serve", "--host", host, "--port", String(port)];
+    if (options.advertiseHost)
+        args.push("--advertise-host", options.advertiseHost);
+    if (options.cdpMaxConnections != null) {
+        args.push("--cdp-max-connections", String(options.cdpMaxConnections));
+    }
+    if (options.cdpMaxPendingConnections != null) {
+        args.push("--cdp-max-pending-connections", String(options.cdpMaxPendingConnections));
+    }
     if (profile)
         args.push("--browser-profile", profile);
     if (options.profilePool?.length && !options.profile) {
         args.push("--browser-profile-pool", options.profilePool.join(","));
     }
-    if (userDataDir)
-        args.push("--user-data-dir", userDataDir);
-    if (profileSnapshot)
-        args.push("--profile-snapshot", profileSnapshot);
-    if (options.cookieJar)
-        args.push("--cookie-jar", options.cookieJar);
-    if (options.logLevel)
-        args.push("--log-level", options.logLevel);
+    args.push(...toEngineArgs({
+        ...options,
+        userDataDir,
+        fingerprintFolder,
+        // Rendered above so the profile flags stay adjacent in the argv.
+        profile: undefined,
+        profilePool: undefined,
+    }));
     const proc = spawn(binary, args, {
         cwd: dataRoot,
-        stdio: "ignore",
+        stdio: options.stdio ?? "ignore",
         env: {
             ...process.env,
             VELORA_ROOT: dataRoot,
@@ -122,23 +128,25 @@ export async function launchVelora(options = {}) {
     proc.on("error", (err) => {
         throw new ProtocolError(`failed to spawn velora: ${err.message}`);
     });
-    await waitForCdp(endpoint, proc);
-    const browser = await Browser.connect(endpoint, options);
+    await waitForCdp(endpoint, proc, options.launchTimeout ?? 15_000);
+    // Launched browsers create targets explicitly; auto-attach is unstable on velora 1.0.x.
+    const browser = await Browser.connect(endpoint, {
+        ...options,
+        enableTargetTracking: options.enableTargetTracking ?? false,
+    });
     return {
         browser,
         endpoint,
         port,
         profile,
-        profileSnapshot,
-        templateRef: options.templateRef ?? (hydrated
-            ? `${hydrated.template}@${hydrated.templateVersion}`
-            : undefined),
+        fingerprintFolder,
         profileId: profileId ?? undefined,
         veloraApi: veloraApi ?? undefined,
         hydratedWorkDir: hydrated?.workDir,
         binary,
         dataRoot,
         installSource: install.source,
+        args,
         process: proc,
         async close() {
             await browser.close().catch(() => undefined);

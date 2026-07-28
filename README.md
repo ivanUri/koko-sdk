@@ -10,8 +10,34 @@ Desktop/
 
 `Browser.launch()` with no options uses **Homebrew** when installed (`brew tap ivanUri/tap && brew install velora`).
 
-Engine data: `$(brew --prefix velora)/share/velora` (`browser/velora.json`, `templates/`, `catalog/`).
-Override with `VELORA_ROOT`, `dataRoot`, or `binary` for a git checkout dev build.
+Engine data: `$(brew --prefix velora)/share/velora`, whose fingerprint store lives at
+`browser/fingerprints/<id>/fingerprint.json`. A source checkout works as a `dataRoot` too,
+as long as `zig-out/bin/velora` is built.
+
+### Pick a local build (testing)
+
+```ts
+import { Browser, listVeloraInstalls } from "velora-sdk";
+
+// List binaries found on this machine
+for (const i of listVeloraInstalls()) {
+  console.log(i.id, i.binary);
+}
+
+// Presets: homebrew | path ($PATH velora)
+const launched = await Browser.launch({ install: "homebrew" });
+
+// Dev build: absolute path to binary or repo root
+await Browser.launch({ install: "/Users/you/Desktop/velora/zig-out/bin/velora" });
+
+// Named custom build via env (e.g. VELORA_INSTALL_DEV=/path/to/bin/velora)
+await Browser.launch({ install: "dev" });
+
+// Default for all scripts in a shell session
+// export VELORA_INSTALL=homebrew
+```
+
+Also: `VELORA_BIN`, `VELORA_ROOT` / `dataRoot`, or `binary` for full control.
 
 TypeScript-first; talks directly to Chrome DevTools Protocol over WebSocket. No Playwright or Puppeteer internals.
 
@@ -37,18 +63,72 @@ await page.click("button.submit");
 await page.fill('textarea[name="q"]', "velora browser");
 await page.press("Enter");
 
+// Low-level input is available for canvas/custom controls that have no locator.
+await page.mouse.move(320, 180, { steps: 8 });
+await page.mouse.click(320, 180);
+await page.keyboard.type("hello");
+await page.keyboard.press("Enter");
+
 await browser.close();
 ```
 
+### Browser context options
+
+```ts
+const context = await browser.newContext({
+  viewport: { width: 390, height: 844 },
+  isMobile: true,
+  hasTouch: true,
+  userAgent: "VeloraBot/1.0 (+https://example.com/bot)", // see note below if you need a Chrome-style UA
+  acceptLanguage: "en-US,en;q=0.9",
+  locale: "en-US",
+  timezoneId: "Asia/Ho_Chi_Minh",
+  geolocation: { latitude: 10.762622, longitude: 106.660172 },
+  permissions: ["geolocation"],
+  extraHTTPHeaders: { "X-Client": "velora-sdk" },
+});
+```
+
+> `userAgent` is rejected **silently** (the call succeeds, but nothing changes) if the value contains
+> `"Mozilla"` and the active profile doesn't allow it — that's an engine guardrail against naively
+> spoofing a full browser UA string. For real antidetect identity spoofing, use `fingerprint`/`profile`
+> on `Browser.launch()` instead of a manual `userAgent` override.
+>
+> **Isolation caveat**: Velora currently supports a single CDP browser context per `velora serve`
+> connection (a second `Target.createBrowserContext` errors). These options are applied per-page, but
+> the underlying engine state (user agent, locale, timezone, geolocation, permissions, extra headers) is
+> connection-wide — multiple `browser.newContext()` calls on the **same** `Browser` are not isolated
+> from each other for these fields. For true per-identity isolation, use a separate `Browser.connect()`
+> / `Browser.launch()` per identity.
+
+### Session persistence (`storageState`)
+
+```ts
+// After logging in on `context`...
+const state = await context.storageState(); // { cookies, origins: [{ origin, localStorage }] }
+writeFileSync("state.json", JSON.stringify(state));
+
+// ...later, or in a different run:
+const state = JSON.parse(readFileSync("state.json", "utf8"));
+const context = await browser.newContext({ storageState: state });
+const page = await context.newPage();
+await page.goto("https://example.com/dashboard"); // already logged in
+```
+
+`storageState()` only captures localStorage for origins currently open in the context — visit each
+origin you care about before calling it. Restored localStorage is applied via an origin-conditional
+init script (runs before page scripts on every matching navigation); cookies are restored immediately
+since they aren't origin-execution-dependent.
+
 ## Velora-only features (not in Playwright)
 
-Velora adds an **LP CDP domain** and **agent-oriented APIs** for AI automation and high-density crawling.
+Velora adds a **`Velora` CDP domain** and **agent-oriented APIs** for AI automation and high-density crawling.
 
 ### Launch (default)
 
 ```ts
 const launched = await Browser.launch();
-// Homebrew binary + browser/velora.json
+// Homebrew binary + the built-in `velora` fingerprint
 console.log(launched.installSource); // "homebrew"
 await launched.close();
 ```
@@ -56,25 +136,26 @@ await launched.close();
 ### Launch with antidetect profile
 
 Velora uses a Chrome-style **user-data-dir** for session state (cookies, localStorage, cache).
-Fingerprint data comes from a **versioned catalog** (`browser/catalog/<template>@<version>/`) or a
-**portable bundle** (`.velora-profile/`).
+Identity comes from a **fingerprint folder** — installed under
+`browser/fingerprints/<id>/`, embedded in a profile at `<profile>/fingerprint/`, or carried
+in a **portable bundle** (`.velora-profile/`).
 
 ```ts
 import {
   Browser,
   defaultUserDataDir,
   profileCookiesPath,
-  parseTemplateRef,
-  catalogSnapshotDir,
-  publishTemplate,
+  listFingerprints,
+  listProfiles,
+  createProfile,
   exportProfile,
   importProfile,
 } from "velora-sdk";
 
-// Pin catalog template version (no local profile folder required)
+// Installed fingerprint id (no local profile folder required)
 const launched = await Browser.launch({
-  profile: "chrome-local-huys-macbook-pro",
-  templateRef: "chrome-local-huys-macbook-pro@1",
+  profile: "my-session",
+  fingerprint: "chrome-macos-sonoma",
   dataRoot: "/path/to/velora-engine",
 });
 
@@ -89,18 +170,74 @@ const page = await launched.browser.newPage();
 await launched.close();
 ```
 
-**Profile bundle CLI** (wraps `velora profile` / `scripts/profile-bundle.mjs`):
+**Profile CLI** (wraps `velora profile`):
 
 ```ts
-await publishTemplate({ template: "chrome-local-huys-macbook-pro@1", dataRoot: "..." });
+listFingerprints("/path/to/velora-engine"); // ["chrome-macos-sonoma", "velora", ...]
+await listProfiles({ dataRoot: "..." });    // [{ name, fingerprint, profileDir, active }]
+await createProfile({ name: "my-profile", fingerprint: "chrome-macos-sonoma", dataRoot: "..." });
 await exportProfile({ name: "my-profile", dataRoot: "..." });
 await importProfile({ name: "restored", from: "/path/to/bundle.velora-profile", dataRoot: "..." });
 ```
 
 On first launch, Velora creates `~/Library/Application Support/velora/<profile>/` with
-`Preferences.json` v2 (`template`, `template_version`, optional embedded `snapshot/`).
+`Preferences.json` **v3** (`{ version: 3, name, fingerprint }`). Any other version is rejected
+by the engine before the CDP server starts.
 
-Resolution order for `--profile-snapshot`: explicit path → bundle → profile `snapshot/` → catalog.
+Resolution order for `--fingerprint-folder`: explicit folder → bundle → profile-embedded
+`fingerprint/` → installed `browser/fingerprints/<id>/`. The engine rejects a path ending in
+`.json` — always pass the folder.
+
+### Engine options
+
+Every `velora serve` flag is reachable from `Browser.launch()` / `launchVelora()` — proxying,
+HTTP tuning, network guards, storage and the full logging surface:
+
+```ts
+const launched = await Browser.launch({
+  httpProxy: "http://user:pass@host:8080",
+  httpTimeout: 20_000,
+  httpMaxConcurrent: 20,
+  blockPrivateNetworks: true,
+  blockCidrs: ["169.254.169.254/32", "-10.0.0.42/32"],
+  obeyRobots: true,
+  storageEngine: "sqlite",
+  storageSqlitePath: ":memory:",
+  logLevel: "warn",
+  logLevels: { network: "debug" },
+  logDir: "logs",
+  logCdpTrace: true,
+});
+console.log(launched.args); // exact argv, for reproducing a run
+```
+
+### One-shot dump (`velora fetch`)
+
+`dump()` drives the engine's CLI path, which reaches renderers and wait conditions the CDP
+path does not expose — markdown/semantic-tree output, `--strip-mode`, iframe inlining,
+script/selector waits, and the hard `--terminate-ms` deadline.
+
+```ts
+import { dump } from "velora-sdk";
+
+const result = await dump("https://example.com", {
+  format: "markdown",          // html | markdown (see note below)
+  strip: ["js", "css"],
+  withFrames: true,
+  waitUntil: "done",
+  waitSelector: "#results",
+  terminateMs: 30_000,
+  profile: "my-session",
+});
+console.log(result.body, result.exitCode);
+```
+
+> The engine lists `semantic_tree` / `semantic_tree_text` under `fetch --dump`, but its CLI
+> path emits nothing for them (velora 1.0.2). Use `page.agent.semanticTree()` over CDP for
+> those; `dump()` raises a clear error rather than returning an empty document.
+>
+> `dump()` reports a non-zero `exitCode` instead of throwing when the document itself is
+> complete — the engine can crash during teardown after the serializer has already written it.
 
 ### SaaS / remote profile (control plane API)
 
@@ -168,6 +305,20 @@ Default navigation wait (also MCP default): load + network idle + document compl
 await page.goto(url, { waitUntil: "done" });
 ```
 
+### Request interception
+
+Playwright-style `page.route()` over the CDP `Fetch` domain — continue, fulfill, or abort matched requests.
+
+```ts
+await page.route("**/*.png", (route) => route.abort());
+await page.route(/\/api\/.+/, async (route) => {
+  if (route.request.method !== "GET") return route.continue();
+  await route.fulfill({ status: 200, contentType: "application/json", body: '{"mocked":true}' });
+});
+
+await page.unroute(); // remove all handlers, disables Fetch domain
+```
+
 ### Proactive JavaScript dialogs
 
 Pre-arm alert/confirm/prompt responses before triggering JS (Velora headless auto-dismiss breaks reactive CDP):
@@ -200,16 +351,17 @@ await page.evaluate("prompt('Name?')");
 | `page.getByAltText()` | `page.getByAltText()` | |
 | `page.getByTitle()` | `page.getByTitle()` | |
 | `page.getByTestId()` | `page.getByTestId()` | `data-testid` attribute |
-| `locator.click()` | `locator.click()` | |
-| `locator.fill()` | `locator.fill()` | |
-| `locator.hover()` | `locator.hover()` | |
-| `locator.check()` / `uncheck()` | `locator.check()` / `uncheck()` | |
-| `locator.selectOption()` | `locator.selectOption()` | |
+| `locator.click()` | `locator.click()` | Auto-waits: visible, enabled, not covered by another element |
+| `locator.fill()` | `locator.fill()` | Auto-waits: visible, enabled |
+| `locator.hover()` | `locator.hover()` | Auto-waits: visible, not covered by another element |
+| `locator.check()` / `uncheck()` | `locator.check()` / `uncheck()` | Auto-waits: visible, enabled, not covered |
+| `locator.selectOption()` | `locator.selectOption()` | Auto-waits: visible, enabled |
 | `locator.textContent()` | `locator.textContent()` | |
 | `locator.count()` / `first()` / `nth()` | same | |
 | `page.click()` / `fill()` | `page.click()` / `fill()` | Selector sugar |
 | `page.type()` | `page.type()` | Alias: `locator.fill()` |
 | `page.press()` | `page.press()` | CDP `Input.dispatchKeyEvent` |
+| `page.keyboard` / `page.mouse` | `page.keyboard` / `page.mouse` | Low-level CDP input for canvas and custom controls |
 | `page.waitForSelector()` | `page.waitForSelector()` | |
 | `page.waitForNavigation()` | `page.waitForNavigation()` | |
 | `page.waitForURL()` | `page.waitForURL()` | string or RegExp |
@@ -222,6 +374,8 @@ await page.evaluate("prompt('Name?')");
 | `page.setViewportSize()` | `page.setViewportSize()` | |
 | `page.search()` | `page.search()` | Velora helper: goto search page + type + Enter |
 | `page.extract()` | `page.extract()` | Velora crawler helper (TTFX + structured extract) |
+| `page.route()` | `page.route()` | `Fetch` domain: continue/fulfill/abort |
+| `page.unroute()` | `page.unroute()` | |
 | `captureSessionState()` | `captureSessionState()` | Cookies + storage snapshot |
 | `restoreSessionState()` | `restoreSessionState()` | |
 
@@ -229,14 +383,17 @@ await page.evaluate("prompt('Name?')");
 
 | API | Description |
 |-----|-------------|
-| `Browser.launch()` | Spawn Velora with profile, catalog snapshot, or bundle |
-| `parseTemplateRef()` / `formatTemplateRef()` | Parse `id@version` template refs |
-| `catalogSnapshotDir()` / `resolveProfileSnapshot()` | Catalog and snapshot path helpers |
-| `publishTemplate()` / `exportProfile()` / `importProfile()` | Profile bundle operations |
+| `Browser.launch()` | Spawn Velora with a profile, fingerprint id, folder, or bundle |
+| `listFingerprints()` | Installed fingerprint ids under `browser/fingerprints/` |
+| `resolveFingerprintFolder()` | Resolve the folder passed as `--fingerprint-folder` |
+| `listProfiles()` / `createProfile()` / `deleteProfile()` | Profile management via `velora profile` |
+| `importCookies()` / `exportProfile()` / `importProfile()` | Cookie seeding and portable bundles |
 | `defaultUserDataDir()` | OS default user-data-dir path |
 | `profileCookiesPath()` | `Cookies.json` path for a named profile |
-| `fetch()` | Programmatic `velora-fetch` (html / md / json) |
-| `page.agent` / `LPClient` | Low-level `LP.*` CDP namespace |
+| `fetch()` | Programmatic CDP fetch (html / md / json) |
+| `dump()` | One-shot `velora fetch` (markdown, semantic tree, strip, waits) |
+| `toEngineArgs()` | Render engine options as CLI argv |
+| `page.agent` / `VeloraClient` | Low-level `Velora.*` CDP namespace |
 | `page.markdown()` | Token-efficient page text |
 | `page.semanticTree()` | Pruned a11y DOM for LLMs |
 | `page.getStructuredData()` | JSON-LD, OpenGraph, meta |
@@ -246,13 +403,16 @@ await page.evaluate("prompt('Name?')");
 | `page.node()` / `NodeHandle` | Stable backend-node actions |
 | `page.waitForSelectorHandle()` | CSS wait → `NodeHandle` |
 | `page.searchGoogle()` | Google SERP extract + block detect |
-| `page.armDialog()` | `LP.handleJavaScriptDialog` pre-arm |
+| `page.armDialog()` | `Velora.handleJavaScriptDialog` pre-arm |
+| `page.agent.clickSelector()` | Engine-side click: selector poll + actionability |
+| `page.agent.fillSelector()` | Engine-side fill (survives SPA frame swaps) |
+| `page.agent.selectOptionSelector()` | Engine-side `<select>` option pick |
 | `waitUntil: "done"` | Velora parse + network idle wait |
+| `page.route()` / `Route` | Request interception via CDP `Fetch` domain |
 
 ### Not in SDK (use CDP client or MCP)
 
 - `expect()` assertions — use your test runner (Node `assert`, Vitest, etc.)
-- `page.route()` / request interception
 - `frameLocator()` / iframe switching
 - `keyboard` / `mouse` standalone objects
 - `browser.newBrowserCDPSession()` tracing APIs
@@ -293,4 +453,15 @@ VELORA_CDP=http://127.0.0.1:9222 npx velora-fetch https://en.wikipedia.org/wiki/
 npm run build
 # or from repo root:
 npm run build
+```
+
+## Testing
+
+Unit tests run against `locator-query`'s resolver via a real DOM (jsdom) and against faked
+CDP transports/sessions — no live `velora serve` connection or browser required, so they're safe
+to run in CI.
+
+```bash
+npm test          # vitest run
+npm run test:watch
 ```

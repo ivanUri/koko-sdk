@@ -12,10 +12,15 @@ export { Browser } from "./browser/browser.js";
 export type { BrowserConnectOptions } from "./browser/browser.js";
 export { launchVelora } from "./browser/launch.js";
 export type { VeloraLaunchOptions, LaunchedVelora } from "./browser/launch.js";
-export { resolveVeloraInstall, defaultVeloraDataRoot } from "./velora-install.js";
-export type { VeloraInstall, VeloraInstallSource, ResolveVeloraInstallOptions } from "./velora-install.js";
+export { resolveVeloraInstall, defaultVeloraDataRoot, listVeloraInstalls } from "./velora-install.js";
+export type {
+  VeloraInstall,
+  VeloraInstallSource,
+  VeloraInstallPreset,
+  ResolveVeloraInstallOptions,
+} from "./velora-install.js";
 export { BrowserContext } from "./browser/context.js";
-export type { BrowserContextOptions } from "./browser/context.js";
+export type { BrowserContextOptions, Geolocation, StorageState, StorageStateOrigin } from "./browser/context.js";
 export { Page } from "./browser/page.js";
 export type {
   EvaluateOptions,
@@ -32,9 +37,13 @@ export type {
 export { Locator } from "./browser/locator.js";
 export type { LocatorOptions, GetByRoleOptions, GetByTextOptions, LocatorPressOptions } from "./browser/locator.js";
 export type { ActionOptions, FillOptions, SelectOptions, SelectOptionValue } from "./browser/actions.js";
-export { LPClient } from "./browser/lp-client.js";
+export { VeloraClient, LPClient } from "./browser/lp-client.js";
+export { toEngineArgs } from "./browser/engine-options.js";
+export type { EngineCommonOptions, LogLevel, LogChannel } from "./browser/engine-options.js";
 export { NodeHandle } from "./browser/node-handle.js";
 export type { NodeActionOptions, NodePressOptions } from "./browser/node-handle.js";
+export { Route, RouteRegistry, matchesRoutePattern } from "./browser/route.js";
+export type { RouteRequest, RouteFulfillOptions, RouteHandler, RoutePattern } from "./browser/route.js";
 export {
   searchGoogle,
   buildGoogleSearchUrl,
@@ -43,6 +52,7 @@ export {
   GOOGLE_TTFX_EXPR,
 } from "./browser/google-search.js";
 export type {
+  SelectorActionOptions,
   SemanticTreeOptions,
   SemanticNode,
   MarkdownOptions,
@@ -64,7 +74,11 @@ export type { CrawlItem, CrawlPageResult, CrawlWorker, CrawlWorkerOptions } from
 export { PageWaiter } from "./browser/waiter.js";
 export type { GotoWaitOptions, WaitUntil } from "./browser/waiter.js";
 export { NetworkTracker } from "./browser/network.js";
-export type { NetworkRequest, NetworkResponse } from "./browser/network.js";
+export type { UrlMatch, WaitForNetworkOptions, NetworkEventMap } from "./browser/network.js";
+export { Keyboard, Mouse } from "./browser/input.js";
+export type { KeyboardPressOptions, KeyboardTypeOptions, MouseButtonOptions, MouseMoveOptions } from "./browser/input.js";
+export { Request, Response } from "./browser/request.js";
+export type { ResourceType, RequestFailure } from "./browser/request.js";
 export { captureSessionState, restoreSessionState } from "./browser/session-state.js";
 export type { BrowserSessionState, CookieState } from "./browser/session-state.js";
 
@@ -76,35 +90,42 @@ export type { LoggerOption, LoggerSink, LogEntry } from "./utils/logger.js";
 
 export { fetch } from "./fetch.js";
 export type { FetchFormat, FetchOptions, FetchResult } from "./fetch.js";
+export { dump } from "./dump.js";
+export type { DumpFormat, DumpOptions, DumpResult, DumpWaitUntil, StripMode } from "./dump.js";
 export { defaultUserDataDir, profileCookiesPath } from "./profile-paths.js";
 export {
-  parseTemplateRef,
-  formatTemplateRef,
-  catalogDir,
-  catalogSnapshotDir,
-  catalogFingerprintPath,
+  FINGERPRINT_DIR,
+  FINGERPRINT_FILE,
+  defaultFingerprintForName,
+  fingerprintDir,
+  fingerprintDefinitionPath,
+  listFingerprints,
   profileDir,
   profilePreferencesPath,
-  profileSnapshotDir,
+  profileFingerprintDir,
   bundleDir,
-  bundleSnapshotDir,
+  bundleFingerprintDir,
   readPreferences,
-  resolveProfileSnapshot,
+  resolveFingerprintFolder,
 } from "./profile.js";
-export type { TemplateRef, PreferencesV2, ResolveSnapshotOptions } from "./profile.js";
+export type { PreferencesV3, ResolveFingerprintOptions } from "./profile.js";
 export {
-  publishTemplate,
+  listProfiles,
+  createProfile,
+  deleteProfile,
+  importCookies,
   exportProfile,
   importProfile,
-  createProfile,
 } from "./profile-bundle.js";
 export type {
   ProfileBundleCommonOptions,
-  PublishTemplateOptions,
   ExportProfileOptions,
   ImportProfileOptions,
   CreateProfileOptions,
+  DeleteProfileOptions,
+  ImportCookiesOptions,
   ProfileBundleResult,
+  ProfileListEntry,
 } from "./profile-bundle.js";
 export {
   fetchRemoteProfile,

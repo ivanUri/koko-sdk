@@ -1,7 +1,14 @@
 import type { CDPSession } from "../cdp/session.js";
-import type { DetectedForm, DialogOptions, FindElementOptions, InteractiveElement, MarkdownOptions, NodeDetails, ScrollOptions, SemanticNode, SemanticTreeOptions, StructuredData } from "./lp-types.js";
+import type { DetectedForm, DialogOptions, FindElementOptions, InteractiveElement, MarkdownOptions, NodeDetails, ScrollOptions, SelectorActionOptions, SemanticNode, SemanticTreeOptions, StructuredData } from "./lp-types.js";
 import type { Page } from "./page.js";
-export declare class LPClient {
+/**
+ * Velora-namespaced semantic and locator API.
+ *
+ * Selector actions (`clickSelector`, `fillSelector`, `selectOptionSelector`)
+ * keep selector polling, SPA frame changes and actionability inside the engine,
+ * so callers do not reproduce visibility/retry policy with Runtime.evaluate.
+ */
+export declare class VeloraClient {
     private readonly page;
     private readonly session;
     constructor(page: Page, session: CDPSession);
@@ -27,6 +34,13 @@ export declare class LPClient {
     waitForSelectorNode(selector: string, options?: {
         timeout?: number;
     }): Promise<number>;
+    /**
+     * Pre-arm the next window.alert/confirm/prompt response.
+     *
+     * Velora dialogs do not suspend V8, so this must be called *before* the
+     * script that opens the dialog — a reactive Page.handleJavaScriptDialog
+     * would arrive after JS already returned.
+     */
     armDialog(options: DialogOptions): Promise<void>;
     clickNode(backendNodeId: number, options?: {
         timeout?: number;
@@ -34,6 +48,9 @@ export declare class LPClient {
     fillNode(backendNodeId: number, text: string, options?: {
         timeout?: number;
     }): Promise<void>;
+    clickSelector(selector: string, options?: SelectorActionOptions): Promise<void>;
+    fillSelector(selector: string, text: string, options?: SelectorActionOptions): Promise<void>;
+    selectOptionSelector(selector: string, value: string, options?: SelectorActionOptions): Promise<void>;
     scrollNode(backendNodeId: number | undefined, options?: ScrollOptions): Promise<void>;
     hoverNode(backendNodeId: number, options?: {
         timeout?: number;
@@ -49,3 +66,5 @@ export declare class LPClient {
         timeout?: number;
     }): Promise<void>;
 }
+/** @deprecated Renamed to `VeloraClient`; the engine domain is `Velora`, not `LP`. */
+export { VeloraClient as LPClient };

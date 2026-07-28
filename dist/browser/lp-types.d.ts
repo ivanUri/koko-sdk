@@ -108,6 +108,18 @@ export interface ScrollOptions {
     y?: number;
     timeout?: number;
 }
+/**
+ * Engine-side selector action (`Velora.clickSelector` and friends).
+ *
+ * `selectorTimeout` bounds the engine's actionability polling; `timeout`
+ * bounds the CDP round-trip and should be the larger of the two.
+ */
+export interface SelectorActionOptions {
+    /** Engine actionability polling budget in ms (default: 5000). */
+    selectorTimeout?: number;
+    /** CDP request timeout in ms. */
+    timeout?: number;
+}
 export interface GoogleSearchResult {
     title: string;
     url: string;

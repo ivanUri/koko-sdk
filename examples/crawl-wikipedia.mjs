@@ -28,7 +28,7 @@ function parseArgs(argv) {
   const out = {
     launch: false,
     profile: process.env.VELORA_PROFILE ?? "chrome-local-huys-macbook-pro",
-    templateRef: process.env.VELORA_TEMPLATE ?? "chrome-local-huys-macbook-pro@1",
+    fingerprint: process.env.VELORA_FINGERPRINT ?? undefined,
     endpoint: process.env.VELORA_CDP ?? null,
     limit: 8,
     concurrency: 2,
@@ -97,7 +97,7 @@ async function main() {
     if (args.launch) {
       launched = await Browser.launch({
         profile: args.profile,
-        templateRef: args.templateRef,
+        fingerprint: args.fingerprint,
         logLevel: "warn",
       });
       endpoint = launched.endpoint;

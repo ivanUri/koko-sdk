@@ -7,9 +7,10 @@ import { NetworkTracker } from "./network.js";
 import { RouteRegistry, type RouteHandler, type RoutePattern } from "./route.js";
 import { Locator, type GetByRoleOptions, type GetByTextOptions, type LocatorOptions } from "./locator.js";
 import type { ActionOptions, FillOptions, SelectOptions } from "./actions.js";
-import { LPClient } from "./lp-client.js";
+import { VeloraClient } from "./lp-client.js";
 import { NodeHandle } from "./node-handle.js";
 import { searchGoogle } from "./google-search.js";
+import { Keyboard, Mouse } from "./input.js";
 import type {
   DetectedForm,
   DialogOptions,
@@ -104,8 +105,10 @@ const CONTENT_EXPR = `(() => {
 export class Page {
   readonly network: NetworkTracker;
   readonly waiter: PageWaiter;
+  readonly keyboard: Keyboard;
+  readonly mouse: Mouse;
   /** Velora LP domain — AI extraction and backend-node agent actions. */
-  readonly agent: LPClient;
+  readonly agent: VeloraClient;
   private readonly routes: RouteRegistry;
   private initialized = false;
   private mainFrameId?: string;
@@ -115,7 +118,9 @@ export class Page {
     this.routes = new RouteRegistry(session);
     this.network = new NetworkTracker(session);
     this.waiter = new PageWaiter(session, this.network);
-    this.agent = new LPClient(this, session);
+    this.keyboard = new Keyboard(session);
+    this.mouse = new Mouse(session);
+    this.agent = new VeloraClient(this, session);
   }
 
   /** Register cleanup when page.close() runs (used by Browser/Context). */
@@ -160,21 +165,36 @@ export class Page {
     const expression = typeof expressionOrFunction === "function"
       ? `(${expressionOrFunction.toString()})()`
       : expressionOrFunction;
-    const result = await this.session.send<any>("Runtime.evaluate", {
-      expression,
-      returnByValue: true,
-      awaitPromise: true,
-    }, options.timeout);
-    if (result.exceptionDetails) {
-      const ex = result.exceptionDetails;
-      const desc = ex?.exception?.description ?? ex?.exception?.value ?? ex?.text ?? "Runtime.evaluate failed";
-      throw new ProtocolError(typeof desc === "string" ? desc : JSON.stringify(desc), {
-        method: "Runtime.evaluate",
-        sessionId: this.session.sessionId,
-        payload: ex,
-      });
+    // After clean-slate re-nav, CDP may briefly lack a default execution context.
+    // One cheap retry avoids empty title/snapshot without slowing the happy path.
+    const maxAttempts = 2;
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        if (attempt > 0) await delay(50);
+        const result = await this.session.send<any>("Runtime.evaluate", {
+          expression,
+          returnByValue: true,
+          awaitPromise: true,
+        }, options.timeout);
+        if (result.exceptionDetails) {
+          const ex = result.exceptionDetails;
+          const desc = ex?.exception?.description ?? ex?.exception?.value ?? ex?.text ?? "Runtime.evaluate failed";
+          throw new ProtocolError(typeof desc === "string" ? desc : JSON.stringify(desc), {
+            method: "Runtime.evaluate",
+            sessionId: this.session.sessionId,
+            payload: ex,
+          });
+        }
+        return result.result?.value as T;
+      } catch (err) {
+        lastErr = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        const retryable = /execution context|Cannot find default|context was destroyed|Inspected target/i.test(msg);
+        if (!retryable || attempt === maxAttempts - 1) throw err;
+      }
     }
-    return result.result?.value as T;
+    throw lastErr;
   }
 
   /** Single round-trip HTML snapshot (doctype + outerHTML). */

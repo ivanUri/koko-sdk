@@ -1,12 +1,68 @@
 import { buildResolveExpression } from "./locator-query.js";
-async function runOnLocator(page, queries, body, options = {}, resolveOptions = {}) {
+import { delay } from "../utils/timeout.js";
+/** Inline snippet: throws (caught by the poll loop in `runOnLocator`) when a condition fails. */
+function actionabilitySnippet(checks) {
+    return `
+    {
+      const style = getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      const visible = style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      if (!visible) throw new Error('element is not visible');
+      ${checks.requireEnabled ? `
+      const disabled = el.disabled === true
+        || (typeof el.hasAttribute === 'function' && el.hasAttribute('disabled'))
+        || el.getAttribute?.('aria-disabled') === 'true'
+        || !!el.closest?.('[disabled]');
+      if (disabled) throw new Error('element is disabled');
+      ` : ""}
+      ${checks.requirePointerTarget ? `
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const atPoint = document.elementFromPoint(cx, cy);
+      const covered = !atPoint || (atPoint !== el && !el.contains(atPoint) && !atPoint.contains(el));
+      if (covered) throw new Error('element is covered by another element and would not receive the event');
+      ` : ""}
+    }
+  `;
+}
+/**
+ * Resolve the locator and run `body` against it, polling until both the element resolves
+ * AND the actionability checks pass (or `options.timeout` elapses) — mirrors Playwright's
+ * auto-waiting instead of a single-shot resolve-and-dispatch.
+ *
+ * Polls with one discrete `Runtime.evaluate` round-trip per attempt, sleeping on the Node side
+ * between attempts (same pattern as `waiter.ts`'s `pollExpression`) — NOT a single evaluate call
+ * that sleeps internally via an in-page `setTimeout`. Velora treats a script evaluation as "host
+ * nested" for its entire duration (see `EventLoop.zig`'s `isHostNested`), which blocks other
+ * pending macrotasks — including a page's own already-scheduled timers — from running until that
+ * evaluate returns. An in-page poll loop would therefore never observe outside state changes (e.g.
+ * an overlay whose removal is scheduled via the page's own `setTimeout`) while it's polling.
+ */
+/** `body` must end with an explicit `return <value>;`. */
+async function runOnLocator(page, queries, body, options = {}, resolveOptions = {}, checks = {}) {
     const resolve = buildResolveExpression(queries, resolveOptions);
     const timeout = options.timeout ?? 30_000;
-    await page.evaluate(`(() => {
+    const check = actionabilitySnippet(checks);
+    const attempt = `(() => {
     const el = ${resolve};
+    ${check}
     ${body}
-    return true;
-  })()`, { timeout });
+  })()`;
+    const deadline = Date.now() + timeout;
+    let lastError;
+    while (true) {
+        try {
+            return await page.evaluate(attempt, { timeout: Math.min(5_000, Math.max(1_000, timeout)) });
+        }
+        catch (err) {
+            lastError = err instanceof Error ? err : new Error(String(err));
+            if (/strict mode violation/.test(lastError.message))
+                throw lastError;
+        }
+        if (Date.now() >= deadline)
+            throw lastError;
+        await delay(50);
+    }
 }
 export async function locatorClick(page, queries, options = {}, resolveOptions = {}) {
     await runOnLocator(page, queries, `
@@ -15,14 +71,16 @@ export async function locatorClick(page, queries, options = {}, resolveOptions =
     el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
     if (typeof el.click === 'function') el.click();
     else el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-  `, options, resolveOptions);
+    return true;
+  `, options, resolveOptions, { requireEnabled: true, requirePointerTarget: true });
 }
 export async function locatorHover(page, queries, options = {}, resolveOptions = {}) {
     await runOnLocator(page, queries, `
     el.scrollIntoView({ block: 'center', inline: 'center' });
     el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
     el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false, cancelable: false }));
-  `, options, resolveOptions);
+    return true;
+  `, options, resolveOptions, { requirePointerTarget: true });
 }
 export async function locatorFill(page, queries, text, options = {}, resolveOptions = {}) {
     const clearFirst = options.clear !== false;
@@ -45,7 +103,8 @@ export async function locatorFill(page, queries, text, options = {}, resolveOpti
     }
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
-  `, options, resolveOptions);
+    return true;
+  `, options, resolveOptions, { requireEnabled: true });
 }
 export async function locatorCheck(page, queries, checked, options = {}, resolveOptions = {}) {
     await runOnLocator(page, queries, `
@@ -55,14 +114,12 @@ export async function locatorCheck(page, queries, checked, options = {}, resolve
     el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
-  `, options, resolveOptions);
+    return true;
+  `, options, resolveOptions, { requireEnabled: true, requirePointerTarget: true });
 }
 export async function locatorSelectOption(page, queries, values, options = {}, resolveOptions = {}) {
-    const resolve = buildResolveExpression(queries, resolveOptions);
-    const timeout = options.timeout ?? 30_000;
     const payload = JSON.stringify(normalizeSelectValues(values));
-    return page.evaluate(`(() => {
-    const el = ${resolve};
+    return runOnLocator(page, queries, `
     if (el.tagName !== 'SELECT') throw new Error('selectOption: not a select element');
     const specs = ${payload};
     const selected = [];
@@ -79,7 +136,7 @@ export async function locatorSelectOption(page, queries, values, options = {}, r
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
     return selected;
-  })()`, { timeout });
+  `, options, resolveOptions, { requireEnabled: true });
 }
 function normalizeSelectValues(values) {
     if (values == null)

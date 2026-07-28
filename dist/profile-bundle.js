@@ -1,22 +1,13 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { ProtocolError } from "./cdp/errors.js";
 import { defaultUserDataDir } from "./profile-paths.js";
-import { formatTemplateRef, parseTemplateRef } from "./profile.js";
 import { resolveVeloraInstall } from "./velora-install.js";
 function resolveInstall(options) {
     return resolveVeloraInstall({
         binary: options.binary,
         dataRoot: options.dataRoot,
     });
-}
-function bundleScriptPath(dataRoot) {
-    const script = join(dataRoot, "scripts/profile-bundle.mjs");
-    if (!existsSync(script)) {
-        throw new ProtocolError(`profile-bundle.mjs not found in ${dataRoot}`);
-    }
-    return script;
 }
 async function runProcess(command, args, cwd) {
     return new Promise((resolveResult, reject) => {
@@ -48,89 +39,80 @@ async function runVeloraProfile(subArgs, options) {
     const args = ["profile", ...subArgs, "--user-data-dir", userDataDir];
     return runProcess(binary, args, dataRoot);
 }
-async function runBundleScript(subArgs, options) {
-    const { dataRoot } = resolveInstall(options);
-    const script = bundleScriptPath(dataRoot);
-    const userDataDir = options.userDataDir ?? defaultUserDataDir();
-    const args = [
-        script,
-        "--velora-root",
-        dataRoot,
-        "--user-data-dir",
-        userDataDir,
-        ...subArgs,
-    ];
-    return runProcess("node", args, dataRoot);
-}
-/** Publish a template into `browser/catalog/<id>/<version>/`. */
-export async function publishTemplate(options) {
-    const ref = parseTemplateRef(options.template);
-    const version = options.version ?? ref.version;
-    try {
-        return await runVeloraProfile([
-            "publish",
-            "--template",
-            ref.id,
-            "--version",
-            String(version),
-        ], options);
+/**
+ * List profiles in user-data-dir.
+ *
+ * `velora profile list` renders fixed-width columns via `std.debug.print`, so
+ * the table arrives on **stderr**, and a name wider than its column shifts the
+ * later fields. Rows are therefore anchored on the profile path (always
+ * `<user-data-dir>/<name>`) rather than split on whitespace.
+ */
+export async function listProfiles(options = {}) {
+    const result = await runVeloraProfile(["list"], options);
+    const text = `${result.stderr}\n${result.stdout}`;
+    const lines = text.split("\n");
+    const root = lines
+        .find((l) => l.startsWith("user-data-dir:"))
+        ?.slice("user-data-dir:".length)
+        .trim()
+        ?? options.userDataDir
+        ?? defaultUserDataDir();
+    const entries = [];
+    for (const line of lines) {
+        if (line.startsWith("user-data-dir:") || line.startsWith("last-created:"))
+            continue;
+        const idx = line.indexOf(`${root}/`);
+        if (idx < 0)
+            continue;
+        let rest = line.slice(idx).trimEnd();
+        const active = rest.endsWith("*");
+        if (active)
+            rest = rest.slice(0, -1).trimEnd();
+        const name = rest.slice(root.length + 1);
+        if (!name)
+            continue;
+        const head = line.slice(0, idx).trim();
+        const fingerprint = head.startsWith(name) ? head.slice(name.length).trim() : head;
+        entries.push({ name, fingerprint, profileDir: rest, active });
     }
-    catch {
-        return runBundleScript([
-            "publish",
-            "--template",
-            ref.id,
-            "--version",
-            String(version),
-        ], options);
-    }
+    return entries;
 }
-/** Export a profile instance to a portable `.velora-profile` bundle. */
+/** Create a profile folder bound to an installed fingerprint id. */
+export async function createProfile(options) {
+    const args = ["create", "--name", options.name];
+    if (options.fingerprint)
+        args.push("--fingerprint", options.fingerprint);
+    return runVeloraProfile(args, options);
+}
+export async function deleteProfile(options) {
+    return runVeloraProfile(["delete", "--name", options.name], options);
+}
+/** Seed a profile's Cookies.json from an exported cookie file. */
+export async function importCookies(options) {
+    const args = ["import-cookies"];
+    if (options.name)
+        args.push("--name", options.name);
+    args.push("--from", resolve(options.from));
+    return runVeloraProfile(args, options);
+}
+/**
+ * Export a profile to a portable `.velora-profile` bundle
+ * (`fingerprint/`, `Preferences.json`, `session/`).
+ */
 export async function exportProfile(options) {
-    const extra = options.out ? ["--to", resolve(options.out)] : [];
-    try {
-        return await runVeloraProfile(["export", "--name", options.name, ...extra], options);
-    }
-    catch {
-        const scriptArgs = ["export", "--name", options.name];
-        if (options.out)
-            scriptArgs.push("--out", resolve(options.out));
-        return runBundleScript(scriptArgs, options);
-    }
+    const args = ["export", "--name", options.name];
+    if (options.out)
+        args.push("--to", resolve(options.out));
+    return runVeloraProfile(args, options);
 }
 /** Import a bundle into user-data-dir as a named profile. */
 export async function importProfile(options) {
-    try {
-        return await runVeloraProfile([
-            "import",
-            "--name",
-            options.name,
-            "--from",
-            resolve(options.from),
-        ], options);
-    }
-    catch {
-        return runBundleScript([
-            "import",
-            "--name",
-            options.name,
-            "--from",
-            resolve(options.from),
-        ], options);
-    }
-}
-/** Create a profile folder with Preferences v2 (via velora CLI). */
-export async function createProfile(options) {
-    const template = options.template ?? options.name;
-    const ref = parseTemplateRef(template);
-    const version = options.version ?? ref.version;
-    const templateArg = formatTemplateRef({ id: ref.id, version });
     return runVeloraProfile([
-        "create",
+        "import",
         "--name",
         options.name,
-        "--template",
-        templateArg,
+        "--from",
+        resolve(options.from),
     ], options);
 }
 //# sourceMappingURL=profile-bundle.js.map
