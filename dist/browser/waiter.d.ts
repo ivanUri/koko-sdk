@@ -4,6 +4,7 @@ export type WaitUntil = "none" | "commit" | "domcontentloaded" | "load" | "netwo
 export interface GotoWaitOptions {
     waitUntil?: WaitUntil;
     timeout?: number;
+    signal?: AbortSignal;
     networkIdleMs?: number;
 }
 export interface InternalWaitOptions extends GotoWaitOptions {

@@ -140,7 +140,7 @@ export class Response {
   }
 
   ok(): boolean {
-    return this._status === 0 || (this._status >= 200 && this._status < 300);
+    return this._status >= 200 && this._status < 300;
   }
 
   headers(): Record<string, string> {

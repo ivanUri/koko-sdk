@@ -12,8 +12,13 @@ import type {
   SemanticNode,
   SemanticTreeOptions,
   StructuredData,
+  LinkInfo,
+  LinksOptions,
+  AgentSnapshot,
+  AgentSnapshotOptions,
 } from "./lp-types.js";
 import type { Page } from "./page.js";
+import type { AgentTool } from "../agent.js";
 
 /**
  * CDP domain served by the engine (`src/protocols/cdp/domains/velora.zig`).
@@ -35,6 +40,74 @@ export class VeloraClient {
     private readonly page: Page,
     private readonly session: CDPSession,
   ) {}
+
+  tools(): AgentTool[] {
+    return [
+      {
+        name: "semanticTree",
+        description: "Return the current page semantic tree.",
+        inputSchema: { type: "object", properties: { format: { type: "string" } } },
+        execute: (input) => this.semanticTree((input ?? {}) as SemanticTreeOptions),
+      },
+      {
+        name: "markdown",
+        description: "Return token-efficient page markdown.",
+        inputSchema: { type: "object", properties: {} },
+        execute: () => this.markdown(),
+      },
+      {
+        name: "forms",
+        description: "Detect forms and fields on the current page.",
+        inputSchema: { type: "object", properties: {} },
+        execute: () => this.detectForms(),
+      },
+      {
+        name: "links",
+        description: "Extract unique absolute links from the current page.",
+        inputSchema: { type: "object", properties: {} },
+        execute: () => this.links(),
+      },
+    ];
+  }
+
+  async snapshot(options: AgentSnapshotOptions = {}): Promise<AgentSnapshot> {
+    const include = new Set(options.include ?? [
+      "semanticTree",
+      "interactiveElements",
+      "forms",
+      "links",
+    ]);
+    const snapshot: AgentSnapshot = {
+      generation: this.page.generation,
+      capturedAt: new Date().toISOString(),
+    };
+    await Promise.all([
+      include.has("semanticTree")
+        ? this.semanticTree({ ...options.semanticTree, timeout: options.timeout ?? options.semanticTree?.timeout })
+          .then((value) => { snapshot.semanticTree = value; })
+        : undefined,
+      include.has("markdown")
+        ? this.markdown({ ...options.markdown, timeout: options.timeout ?? options.markdown?.timeout })
+          .then((value) => { snapshot.markdown = value; })
+        : undefined,
+      include.has("interactiveElements")
+        ? this.getInteractiveElements({ timeout: options.timeout })
+          .then((value) => { snapshot.interactiveElements = value; })
+        : undefined,
+      include.has("structuredData")
+        ? this.getStructuredData({ timeout: options.timeout })
+          .then((value) => { snapshot.structuredData = value; })
+        : undefined,
+      include.has("forms")
+        ? this.detectForms({ timeout: options.timeout })
+          .then((value) => { snapshot.forms = value; })
+        : undefined,
+      include.has("links")
+        ? this.links({ timeout: options.timeout }).then((value) => { snapshot.links = value; })
+        : undefined,
+    ]);
+    return snapshot;
+  }
 
   async markdown(options: MarkdownOptions = {}): Promise<string> {
     const result = await this.session.send<{ markdown: string }>(
@@ -88,6 +161,11 @@ export class VeloraClient {
     return result.forms ?? [];
   }
 
+  /** Canonical Velora extension name; detectForms remains backwards compatible. */
+  forms(options: { timeout?: number } = {}): Promise<DetectedForm[]> {
+    return this.detectForms(options);
+  }
+
   async getNodeDetails(backendNodeId: number, options: { timeout?: number } = {}): Promise<NodeDetails> {
     const result = await this.session.send<{ nodeDetails: NodeDetails }>(
       method("getNodeDetails"),
@@ -109,19 +187,34 @@ export class VeloraClient {
     });
   }
 
-  async links(options: { timeout?: number } = {}): Promise<string[]> {
+  async links(options?: LinksOptions & { details?: false }): Promise<string[]>;
+  async links(options: LinksOptions & { details: true }): Promise<LinkInfo[]>;
+  async links(options: LinksOptions = {}): Promise<string[] | LinkInfo[]> {
     await this.page.init();
-    return this.page.evaluate<string[]>(`(() => {
+    const links = await this.page.evaluate<LinkInfo[]>(`(() => {
       const out = [];
       const seen = new Set();
       for (const a of document.querySelectorAll('a[href]')) {
         const href = a.href;
         if (!href || seen.has(href)) continue;
         seen.add(href);
-        out.push(href);
+        out.push({
+          url: href,
+          text: (a.textContent || '').trim(),
+          title: a.getAttribute('title'),
+          rel: (a.getAttribute('rel') || '').split(/\\s+/).filter(Boolean),
+          target: a.getAttribute('target'),
+          internal: a.origin === location.origin,
+        });
       }
       return out;
     })()`, { timeout: options.timeout });
+    const filtered = links.filter((link) => {
+      if (options.internalOnly && !link.internal) return false;
+      if (options.externalOnly && link.internal) return false;
+      return true;
+    });
+    return options.details ? filtered : filtered.map((link) => link.url);
   }
 
   async waitForSelectorNode(selector: string, options: { timeout?: number } = {}): Promise<number> {

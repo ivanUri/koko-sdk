@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { delay, withTimeout } from "../src/utils/timeout.js";
-import { TimeoutError } from "../src/cdp/errors.js";
+import { AbortError, TimeoutError } from "../src/cdp/errors.js";
 
 describe("withTimeout", () => {
   it("resolves with the wrapped value when it settles first", async () => {
@@ -21,6 +21,24 @@ describe("withTimeout", () => {
 
   it("propagates the wrapped promise's rejection (not a timeout)", async () => {
     await expect(withTimeout(Promise.reject(new Error("boom")), { timeout: 1000 })).rejects.toThrow("boom");
+  });
+
+  it("rejects with AbortError and removes the abort listener", async () => {
+    const controller = new AbortController();
+    const pending = withTimeout(new Promise(() => {}), {
+      timeout: 1000,
+      signal: controller.signal,
+      label: "cancel me",
+    });
+    controller.abort();
+    await expect(pending).rejects.toThrow(AbortError);
+  });
+
+  it("exposes stable error metadata", () => {
+    const error = new TimeoutError("timed out", { operation: "navigation" });
+    expect(error.code).toBe("TIMEOUT");
+    expect(error.retryable).toBe(true);
+    expect(error.operation).toBe("navigation");
   });
 });
 

@@ -15,6 +15,9 @@ export interface MouseMoveOptions {
     steps?: number;
     timeout?: number;
 }
+export interface MouseWheelOptions {
+    timeout?: number;
+}
 /** Low-level keyboard input, useful when no locator is available. */
 export declare class Keyboard {
     private readonly session;
@@ -35,4 +38,5 @@ export declare class Mouse {
     down(options?: MouseButtonOptions): Promise<void>;
     up(options?: MouseButtonOptions): Promise<void>;
     click(x: number, y: number, options?: MouseButtonOptions & MouseMoveOptions): Promise<void>;
+    wheel(deltaX: number, deltaY: number, options?: MouseWheelOptions): Promise<void>;
 }

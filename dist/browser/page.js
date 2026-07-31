@@ -8,14 +8,17 @@ import { VeloraClient } from "./lp-client.js";
 import { NodeHandle } from "./node-handle.js";
 import { searchGoogle } from "./google-search.js";
 import { Keyboard, Mouse } from "./input.js";
+import { waitForDownload } from "./download.js";
+import { Frame, PageFrameLocator, flattenFrameTree } from "./frame.js";
+import { consoleMessageFromCdp, pageErrorFromCdp, } from "./console-message.js";
 const DEFAULT_TTFX = `(() => {
-  const el = document.querySelector("#firstHeading") || document.querySelector("h1");
-  return el?.textContent?.trim() || null;
+  const body = document.body;
+  return body && (body.innerText?.trim().length || body.childElementCount > 0);
 })()`;
 const DEFAULT_EXTRACT = `(() => {
-  const links = document.querySelectorAll('a[href^="/wiki/"]:not([href*=":"])');
-  const title = document.querySelector("#firstHeading")?.textContent?.trim()
-    || document.title.replace(/ - Wikipedia$/, "").trim();
+  const links = document.querySelectorAll('a[href]');
+  const title = document.querySelector("h1")?.textContent?.trim()
+    || document.title.trim();
   return {
     title,
     linkCount: links.length,
@@ -28,6 +31,39 @@ const CONTENT_EXPR = `(() => {
   const dt = document.doctype ? new XMLSerializer().serializeToString(document.doctype) : '';
   return (dt || '<!DOCTYPE html>') + '\\n' + html;
 })()`;
+function validateExtractSchema(value, schema, path = "$") {
+    const errors = [];
+    const actualType = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+    if (schema.type && actualType !== schema.type) {
+        return [`${path} must be ${schema.type}, got ${actualType}`];
+    }
+    if (schema.enum && !schema.enum.some((candidate) => Object.is(candidate, value))) {
+        errors.push(`${path} must be one of the declared enum values`);
+    }
+    if (actualType === "object" && value) {
+        const record = value;
+        for (const key of schema.required ?? []) {
+            if (!(key in record))
+                errors.push(`${path}.${key} is required`);
+        }
+        for (const [key, child] of Object.entries(schema.properties ?? {})) {
+            if (key in record)
+                errors.push(...validateExtractSchema(record[key], child, `${path}.${key}`));
+        }
+        if (schema.additionalProperties === false && schema.properties) {
+            for (const key of Object.keys(record)) {
+                if (!(key in schema.properties))
+                    errors.push(`${path}.${key} is not allowed`);
+            }
+        }
+    }
+    if (actualType === "array" && schema.items) {
+        value.forEach((item, index) => {
+            errors.push(...validateExtractSchema(item, schema.items, `${path}[${index}]`));
+        });
+    }
+    return errors;
+}
 export class Page {
     session;
     network;
@@ -36,9 +72,14 @@ export class Page {
     mouse;
     /** Velora LP domain — AI extraction and backend-node agent actions. */
     agent;
+    /** Stable Velora extension namespace; `agent` remains as a compatibility alias. */
+    velora;
     routes;
     initialized = false;
+    closePromise;
     mainFrameId;
+    documentGeneration = 0;
+    currentPageUrl = "about:blank";
     closeHooks = new Set();
     constructor(session) {
         this.session = session;
@@ -48,10 +89,28 @@ export class Page {
         this.keyboard = new Keyboard(session);
         this.mouse = new Mouse(session);
         this.agent = new VeloraClient(this, session);
+        this.velora = this.agent;
     }
     /** Register cleanup when page.close() runs (used by Browser/Context). */
     onClose(hook) {
         this.closeHooks.add(hook);
+    }
+    on(event, handler) {
+        if (event === "request"
+            || event === "response"
+            || event === "requestfailed"
+            || event === "requestfinished") {
+            return this.network.on(event, handler);
+        }
+        void this.init();
+        if (event === "console") {
+            return this.session.on("Runtime.consoleAPICalled", (payload) => {
+                handler(consoleMessageFromCdp(payload));
+            });
+        }
+        return this.session.on("Runtime.exceptionThrown", (payload) => {
+            handler(pageErrorFromCdp(payload));
+        });
     }
     async init() {
         if (this.initialized)
@@ -59,8 +118,12 @@ export class Page {
         this.initialized = true;
         this.session.on("Page.frameNavigated", (event) => {
             const frame = event?.frame;
-            if (frame && !frame.parentId)
+            if (frame && !frame.parentId) {
                 this.mainFrameId = frame.id;
+                if (typeof frame.url === "string")
+                    this.currentPageUrl = frame.url;
+                this.documentGeneration++;
+            }
         });
         this.session.on("Inspector.detached", (event) => {
             this.session.markClosed(new TargetClosedError(event?.reason ?? "Inspector detached", { sessionId: this.session.sessionId }));
@@ -68,20 +131,46 @@ export class Page {
         await this.session.send("Page.enable").catch(() => undefined);
         await this.session.send("Runtime.enable").catch(() => undefined);
         const tree = await this.session.send("Page.getFrameTree").catch(() => undefined);
-        this.mainFrameId = tree?.frameTree?.frame?.id ?? this.mainFrameId;
+        const rootFrame = tree?.frameTree?.frame;
+        this.mainFrameId = rootFrame?.id ?? this.mainFrameId;
+        if (typeof rootFrame?.url === "string")
+            this.currentPageUrl = rootFrame.url;
     }
     async goto(url, options = {}) {
         await this.init();
         this.network.reset();
+        await this.network.ensureEnabled();
+        let navigationResponse = null;
+        const offResponse = this.network.on("response", (response) => {
+            if (response.request.isNavigationRequest())
+                navigationResponse = response;
+        });
         const waitPromise = this.waiter.waitForNavigation(options);
         waitPromise.catch(() => undefined);
-        const result = await this.session.send("Page.navigate", { url }, options.timeout);
-        if (result.errorText) {
-            throw new NavigationError(result.errorText, { method: "Page.navigate", sessionId: this.session.sessionId, payload: result });
+        try {
+            const result = await this.session.send("Page.navigate", { url }, options.timeout, options.signal);
+            if (result.errorText) {
+                throw new NavigationError(result.errorText, {
+                    method: "Page.navigate",
+                    sessionId: this.session.sessionId,
+                    payload: result,
+                    url,
+                });
+            }
+            if (result.frameId)
+                this.mainFrameId = result.frameId;
+            this.currentPageUrl = url;
+            await waitPromise;
+            return {
+                response: navigationResponse,
+                url: this.currentPageUrl,
+                frameId: result.frameId ?? this.mainFrameId,
+                loaderId: result.loaderId,
+            };
         }
-        if (result.frameId)
-            this.mainFrameId = result.frameId;
-        await waitPromise;
+        finally {
+            offResponse();
+        }
     }
     async evaluate(expressionOrFunction, options = {}) {
         await this.init();
@@ -100,7 +189,7 @@ export class Page {
                     expression,
                     returnByValue: true,
                     awaitPromise: true,
-                }, options.timeout);
+                }, options.timeout, options.signal);
                 if (result.exceptionDetails) {
                     const ex = result.exceptionDetails;
                     const desc = ex?.exception?.description ?? ex?.exception?.value ?? ex?.text ?? "Runtime.evaluate failed";
@@ -129,7 +218,7 @@ export class Page {
     }
     /**
      * Crawler helper: wait for a TTFX probe then run a structured extract expression.
-     * Defaults match the Wikipedia crawl benchmark.
+     * Defaults are site-independent; pass expressions for domain-specific schemas.
      */
     async extract(options = {}) {
         await this.init();
@@ -140,6 +229,15 @@ export class Page {
         const value = await this.evaluate(expression, { timeout });
         if (!value || typeof value !== "object") {
             throw new ProtocolError("extract returned invalid payload", { method: "Page.extract" });
+        }
+        if (options.schema) {
+            const errors = validateExtractSchema(value, options.schema);
+            if (errors.length) {
+                throw new ProtocolError(`extract schema validation failed: ${errors.join("; ")}`, {
+                    method: "Page.extract",
+                    payload: { errors },
+                });
+            }
         }
         return value;
     }
@@ -214,19 +312,24 @@ export class Page {
         await this.init();
         return this.evaluate("location.href");
     }
+    /** Last main-frame URL observed by the driver, without a protocol round-trip. */
+    currentUrl() {
+        return this.currentPageUrl;
+    }
     async reload(options = {}) {
         await this.init();
         this.network.reset();
         const waitPromise = this.waiter.waitForNavigation(options);
         waitPromise.catch(() => undefined);
-        await this.session.send("Page.reload", { ignoreCache: false }, options.timeout);
+        await this.session.send("Page.reload", { ignoreCache: false }, options.timeout, options.signal);
         await waitPromise;
+        return { response: null, url: this.currentPageUrl, frameId: this.mainFrameId };
     }
     async goBack(options = {}) {
-        await this.historyStep(-1, options);
+        return this.historyStep(-1, options);
     }
     async goForward(options = {}) {
-        await this.historyStep(1, options);
+        return this.historyStep(1, options);
     }
     async screenshot(options = {}) {
         await this.init();
@@ -258,6 +361,91 @@ export class Page {
             mobile: false,
         });
     }
+    async scrollBy(x, y, options = {}) {
+        await this.evaluate(`window.scrollBy({ left: ${x}, top: ${y}, behavior: ${JSON.stringify(options.behavior ?? "auto")} })`, { timeout: options.timeout });
+    }
+    async scrollTo(x, y, options = {}) {
+        await this.evaluate(`window.scrollTo({ left: ${x}, top: ${y}, behavior: ${JSON.stringify(options.behavior ?? "auto")} })`, { timeout: options.timeout });
+    }
+    async setContent(html, options = {}) {
+        await this.init();
+        if (!this.mainFrameId) {
+            throw new ProtocolError("setContent requires a main frame", { method: "Page.setDocumentContent" });
+        }
+        await this.session.send("Page.setDocumentContent", { frameId: this.mainFrameId, html }, options.timeout);
+    }
+    async waitForLoadState(state = "load", options = {}) {
+        if (state === "networkidle") {
+            await this.network.waitForIdle({ timeout: options.timeout });
+            return;
+        }
+        await this.waitForFunction(state === "load"
+            ? 'document.readyState === "complete"'
+            : 'document.readyState === "interactive" || document.readyState === "complete"', { timeout: options.timeout });
+    }
+    async waitForTimeout(timeout) {
+        await delay(timeout);
+    }
+    async waitForDownload(options = {}) {
+        await this.init();
+        return waitForDownload(this.session, options);
+    }
+    async bringToFront(options = {}) {
+        await this.session.send("Page.bringToFront", {}, options.timeout);
+    }
+    async frames(options = {}) {
+        await this.init();
+        const result = await this.session.send("Page.getFrameTree", {}, options.timeout);
+        return flattenFrameTree(result.frameTree).map((info) => new Frame(this.session, info));
+    }
+    async mainFrame(options = {}) {
+        const frames = await this.frames(options);
+        const frame = frames.find((candidate) => !candidate.info.parentId);
+        if (!frame)
+            throw new ProtocolError("main frame not found", { method: "Page.getFrameTree" });
+        return frame;
+    }
+    async frame(selector, options = {}) {
+        const frames = await this.frames(options);
+        return frames.find((candidate) => {
+            if (selector.name != null && candidate.name !== selector.name)
+                return false;
+            if (selector.url != null) {
+                if (typeof selector.url === "string" && candidate.url !== selector.url)
+                    return false;
+                if (selector.url instanceof RegExp && !selector.url.test(candidate.url))
+                    return false;
+            }
+            return true;
+        }) ?? null;
+    }
+    frameLocator(selector) {
+        return new PageFrameLocator(this, selector);
+    }
+    async waitForPopup(options = {}) {
+        await this.init();
+        const openerId = this.session.targetId;
+        const event = await this.session.client.waitFor("Target.targetCreated", {
+            timeout: options.timeout,
+            signal: options.signal,
+            predicate: ({ targetInfo }) => targetInfo.type === "page" && (!openerId || targetInfo.openerId === openerId),
+        });
+        const session = await this.session.client.attachToTarget(event.targetInfo.targetId);
+        const popup = new Page(session);
+        await popup.init();
+        return popup;
+    }
+    async emulateMedia(options = {}) {
+        const features = [];
+        if (options.colorScheme)
+            features.push({ name: "prefers-color-scheme", value: options.colorScheme });
+        if (options.reducedMotion)
+            features.push({ name: "prefers-reduced-motion", value: options.reducedMotion });
+        await this.session.send("Emulation.setEmulatedMedia", {
+            media: options.media ?? "",
+            features,
+        });
+    }
     /** Intercept network requests (Playwright-style `page.route`). */
     async route(pattern, handler) {
         await this.init();
@@ -267,7 +455,17 @@ export class Page {
         await this.routes.unroute(pattern, handler);
     }
     async type(selector, text, options = {}) {
-        return this.fill(selector, text, options);
+        await this.init();
+        const timeout = options.timeout;
+        if (options.clear)
+            await this.fill(selector, "", { timeout });
+        await this.evaluate(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) throw new Error("type target not found: " + ${JSON.stringify(selector)});
+      if (typeof el.focus === "function") el.focus();
+      return true;
+    })()`, { timeout });
+        await this.keyboard.type(text, { timeout });
     }
     async press(key, options = {}) {
         await this.init();
@@ -303,6 +501,9 @@ export class Page {
     }
     detectForms(options) {
         return this.agent.detectForms(options);
+    }
+    forms(options) {
+        return this.agent.forms(options);
     }
     findElement(options) {
         return this.agent.findElement(options);
@@ -342,17 +543,16 @@ export class Page {
         await nav;
     }
     async close() {
-        this.routes.dispose();
-        this.network.dispose();
-        if (this.session.targetId)
-            await this.session.client.closeTarget(this.session.targetId).catch(() => undefined);
-        await this.session.detach().catch(() => undefined);
-        for (const hook of this.closeHooks)
-            hook();
-        this.closeHooks.clear();
+        if (this.closePromise)
+            return this.closePromise;
+        this.closePromise = this.closeImpl();
+        return this.closePromise;
     }
     get frameId() {
         return this.mainFrameId;
+    }
+    get generation() {
+        return this.documentGeneration;
     }
     async historyStep(delta, options = {}) {
         await this.init();
@@ -361,6 +561,18 @@ export class Page {
         waitPromise.catch(() => undefined);
         await this.evaluate(delta === -1 ? "history.back()" : "history.forward()");
         await waitPromise;
+        return { response: null, url: this.currentPageUrl, frameId: this.mainFrameId };
+    }
+    async closeImpl() {
+        this.routes.dispose();
+        this.network.dispose();
+        if (this.session.targetId)
+            await this.session.client.closeTarget(this.session.targetId).catch(() => undefined);
+        await this.session.detach().catch(() => undefined);
+        const hooks = [...this.closeHooks];
+        this.closeHooks.clear();
+        for (const hook of hooks)
+            hook();
     }
 }
 function keySpec(key) {

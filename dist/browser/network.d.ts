@@ -8,6 +8,7 @@ import { Request, Response } from "./request.js";
 export type UrlMatch<T> = string | RegExp | ((value: T) => boolean | Promise<boolean>);
 export interface WaitForNetworkOptions {
     timeout?: number;
+    signal?: AbortSignal;
 }
 /** Network domain events emitted by the tracker (Playwright-compatible names). */
 export interface NetworkEventMap {
@@ -47,6 +48,7 @@ export declare class NetworkTracker {
     waitForIdle(options?: {
         idleMs?: number;
         timeout?: number;
+        signal?: AbortSignal;
     }): Promise<void>;
     private waitForIdleAfterEnabled;
     /**

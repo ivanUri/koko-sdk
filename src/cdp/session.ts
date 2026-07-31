@@ -9,6 +9,7 @@ interface PendingTracker {
 export class CDPSession {
   private _closed?: CDPError;
   private readonly _pending = new Set<PendingTracker>();
+  private readonly _subscriptions = new Set<() => void>();
 
   constructor(
     readonly client: CDPClient,
@@ -20,12 +21,12 @@ export class CDPSession {
     return this._closed;
   }
 
-  send<T = unknown>(method: string, params?: unknown, timeout?: number): Promise<T> {
+  send<T = unknown>(method: string, params?: unknown, timeout?: number, signal?: AbortSignal): Promise<T> {
     if (this._closed) return Promise.reject(this._closed);
     return new Promise<T>((resolve, reject) => {
       const tracker: PendingTracker = { reject };
       this._pending.add(tracker);
-      this.client.send<T>(method, params, this.sessionId, timeout).then(
+      this.client.send<T>(method, params, this.sessionId, timeout, signal).then(
         (value) => { this._pending.delete(tracker); resolve(value); },
         (error) => { this._pending.delete(tracker); reject(error); },
       );
@@ -33,14 +34,24 @@ export class CDPSession {
   }
 
   on<T = unknown>(event: string, handler: EventHandler<T>): () => void {
-    return this.client.onSession(this.sessionId, event, handler);
+    const unsubscribe = this.client.onSession(this.sessionId, event, handler);
+    return this.trackSubscription(unsubscribe);
   }
 
   once<T = unknown>(event: string, handler: EventHandler<T>): () => void {
-    return this.client.onceSession(this.sessionId, event, handler);
+    let off: () => void = () => undefined;
+    const unsubscribe = this.client.onceSession<T>(this.sessionId, event, (payload) => {
+      off();
+      handler(payload);
+    });
+    off = this.trackSubscription(unsubscribe);
+    return off;
   }
 
-  waitFor<T = unknown>(event: string, options?: { timeout?: number; predicate?: (payload: T) => boolean }): Promise<T> {
+  waitFor<T = unknown>(
+    event: string,
+    options?: { timeout?: number; signal?: AbortSignal; predicate?: (payload: T) => boolean },
+  ): Promise<T> {
     if (this._closed) return Promise.reject(this._closed);
     return this.client.waitForSession<T>(this.sessionId, event, options);
   }
@@ -51,6 +62,8 @@ export class CDPSession {
     this._closed = reason ?? new TargetClosedError("Session closed", { sessionId: this.sessionId });
     for (const tracker of this._pending) tracker.reject(this._closed);
     this._pending.clear();
+    for (const unsubscribe of [...this._subscriptions]) unsubscribe();
+    this._subscriptions.clear();
   }
 
   async detach(): Promise<void> {
@@ -60,5 +73,17 @@ export class CDPSession {
     } finally {
       this.markClosed(new TargetClosedError("Session detached", { sessionId: this.sessionId }));
     }
+  }
+
+  private trackSubscription(unsubscribe: () => void): () => void {
+    let active = true;
+    const tracked = () => {
+      if (!active) return;
+      active = false;
+      this._subscriptions.delete(tracked);
+      unsubscribe();
+    };
+    this._subscriptions.add(tracked);
+    return tracked;
   }
 }

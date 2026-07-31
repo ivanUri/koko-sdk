@@ -3,12 +3,17 @@ import { CDPSession } from "../src/cdp/session.js";
 import { TargetClosedError } from "../src/cdp/errors.js";
 import type { CDPClient } from "../src/cdp/client.js";
 
-function fakeClient(overrides: Partial<{ send: any; detachSession: any }> = {}): CDPClient {
+function fakeClient(overrides: Partial<{
+  send: any;
+  detachSession: any;
+  onSession: any;
+  onceSession: any;
+}> = {}): CDPClient {
   return {
     send: overrides.send ?? vi.fn().mockResolvedValue({ ok: true }),
     detachSession: overrides.detachSession ?? vi.fn().mockResolvedValue(undefined),
-    onSession: vi.fn(),
-    onceSession: vi.fn(),
+    onSession: overrides.onSession ?? vi.fn(() => vi.fn()),
+    onceSession: overrides.onceSession ?? vi.fn(() => vi.fn()),
     waitForSession: vi.fn(),
   } as unknown as CDPClient;
 }
@@ -22,7 +27,7 @@ describe("CDPSession", () => {
     const result = await session.send("Runtime.evaluate", { expression: "1+1" }, 5000);
 
     expect(result).toEqual({ value: 42 });
-    expect(send).toHaveBeenCalledWith("Runtime.evaluate", { expression: "1+1" }, "SESSION-1", 5000);
+    expect(send).toHaveBeenCalledWith("Runtime.evaluate", { expression: "1+1" }, "SESSION-1", 5000, undefined);
   });
 
   it("rejects send() immediately once closed", async () => {
@@ -61,5 +66,17 @@ describe("CDPSession", () => {
     await session.detach();
 
     expect(detachSession).not.toHaveBeenCalled();
+  });
+
+  it("releases session-owned event listeners when closed", () => {
+    const unsubscribe = vi.fn();
+    const client = fakeClient({ onSession: vi.fn(() => unsubscribe) });
+    const session = new CDPSession(client, "SESSION-1");
+    session.on("Page.loadEventFired", vi.fn());
+
+    session.markClosed(new TargetClosedError("gone"));
+    session.markClosed(new TargetClosedError("again"));
+
+    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 });

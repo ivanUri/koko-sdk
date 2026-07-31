@@ -8,17 +8,32 @@ import type { ActionOptions, FillOptions, SelectOptions } from "./actions.js";
 import { VeloraClient } from "./lp-client.js";
 import { NodeHandle } from "./node-handle.js";
 import { Keyboard, Mouse } from "./input.js";
-import type { DetectedForm, DialogOptions, FindElementOptions, GoogleExtractResult, GoogleSearchOptions, InteractiveElement, MarkdownOptions, NodeDetails, SemanticNode, SemanticTreeOptions, StructuredData } from "./lp-types.js";
+import { type Download } from "./download.js";
+import { Frame, PageFrameLocator } from "./frame.js";
+import { ConsoleMessage, PageError } from "./console-message.js";
+import type { Request, Response } from "./request.js";
+import type { DetectedForm, DialogOptions, FindElementOptions, GoogleExtractResult, GoogleSearchOptions, InteractiveElement, LinkInfo, LinksOptions, MarkdownOptions, NodeDetails, SemanticNode, SemanticTreeOptions, StructuredData } from "./lp-types.js";
 export interface EvaluateOptions {
     timeout?: number;
+    signal?: AbortSignal;
 }
 export interface ExtractOptions {
     /** Expression that must become truthy before extract runs (TTFX probe). */
     ttfx?: string;
     /** Final extract expression; must returnByValue. */
     expression?: string;
+    /** Optional JSON-Schema subset validated after evaluation. */
+    schema?: ExtractSchema;
     timeout?: number;
     pollMs?: number;
+}
+export interface ExtractSchema {
+    type?: "object" | "array" | "string" | "number" | "boolean" | "null";
+    properties?: Record<string, ExtractSchema>;
+    items?: ExtractSchema;
+    required?: string[];
+    enum?: unknown[];
+    additionalProperties?: boolean;
 }
 export interface ExtractResult {
     title?: string;
@@ -46,12 +61,35 @@ export interface ScreenshotOptions {
 export interface PdfOptions {
     timeout?: number;
 }
+export interface ScrollPageOptions {
+    timeout?: number;
+    behavior?: "auto" | "instant" | "smooth";
+}
+export interface EmulateMediaOptions {
+    media?: "screen" | "print" | "";
+    colorScheme?: "dark" | "light" | "no-preference";
+    reducedMotion?: "reduce" | "no-preference";
+}
 export interface ViewportSize {
     width: number;
     height: number;
 }
 export interface ClickOptions extends ActionOptions {
     waitForNavigation?: boolean | GotoWaitOptions;
+}
+export interface NavigationResult {
+    response: Response | null;
+    url: string;
+    frameId?: string;
+    loaderId?: string;
+}
+export interface PageEventMap {
+    console: ConsoleMessage;
+    pageerror: PageError;
+    request: Request;
+    response: Response;
+    requestfailed: Request;
+    requestfinished: Request;
 }
 export declare class Page {
     readonly session: CDPSession;
@@ -61,23 +99,29 @@ export declare class Page {
     readonly mouse: Mouse;
     /** Velora LP domain — AI extraction and backend-node agent actions. */
     readonly agent: VeloraClient;
+    /** Stable Velora extension namespace; `agent` remains as a compatibility alias. */
+    readonly velora: VeloraClient;
     private readonly routes;
     private initialized;
+    private closePromise?;
     private mainFrameId?;
+    private documentGeneration;
+    private currentPageUrl;
     private readonly closeHooks;
     constructor(session: CDPSession);
     /** Register cleanup when page.close() runs (used by Browser/Context). */
     onClose(hook: () => void): void;
+    on<K extends keyof PageEventMap>(event: K, handler: (payload: PageEventMap[K]) => void): () => void;
     init(): Promise<void>;
-    goto(url: string, options?: GotoWaitOptions): Promise<void>;
+    goto(url: string, options?: GotoWaitOptions): Promise<NavigationResult>;
     evaluate<T = unknown>(expressionOrFunction: string | Function, options?: EvaluateOptions): Promise<T>;
     /** Single round-trip HTML snapshot (doctype + outerHTML). */
     content(): Promise<string>;
     /**
      * Crawler helper: wait for a TTFX probe then run a structured extract expression.
-     * Defaults match the Wikipedia crawl benchmark.
+     * Defaults are site-independent; pass expressions for domain-specific schemas.
      */
-    extract(options?: ExtractOptions): Promise<ExtractResult>;
+    extract<T extends Record<string, unknown> = ExtractResult>(options?: ExtractOptions): Promise<T>;
     waitForSelector(selector: string, options?: {
         timeout?: number;
         visible?: boolean;
@@ -106,13 +150,49 @@ export declare class Page {
     selectOption(selector: string, values: SelectOptions["values"], options?: SelectOptions): Promise<string[]>;
     title(): Promise<string>;
     url(): Promise<string>;
-    reload(options?: GotoWaitOptions): Promise<void>;
-    goBack(options?: GotoWaitOptions): Promise<void>;
-    goForward(options?: GotoWaitOptions): Promise<void>;
+    /** Last main-frame URL observed by the driver, without a protocol round-trip. */
+    currentUrl(): string;
+    reload(options?: GotoWaitOptions): Promise<NavigationResult>;
+    goBack(options?: GotoWaitOptions): Promise<NavigationResult>;
+    goForward(options?: GotoWaitOptions): Promise<NavigationResult>;
     screenshot(options?: ScreenshotOptions): Promise<Buffer>;
     pdf(options?: PdfOptions): Promise<Buffer>;
     addInitScript(source: string | Function): Promise<void>;
     setViewportSize(size: ViewportSize): Promise<void>;
+    scrollBy(x: number, y: number, options?: ScrollPageOptions): Promise<void>;
+    scrollTo(x: number, y: number, options?: ScrollPageOptions): Promise<void>;
+    setContent(html: string, options?: {
+        timeout?: number;
+    }): Promise<void>;
+    waitForLoadState(state?: "domcontentloaded" | "load" | "networkidle", options?: {
+        timeout?: number;
+    }): Promise<void>;
+    waitForTimeout(timeout: number): Promise<void>;
+    waitForDownload(options?: {
+        path?: string;
+        timeout?: number;
+    }): Promise<Download>;
+    bringToFront(options?: {
+        timeout?: number;
+    }): Promise<void>;
+    frames(options?: {
+        timeout?: number;
+    }): Promise<Frame[]>;
+    mainFrame(options?: {
+        timeout?: number;
+    }): Promise<Frame>;
+    frame(selector: {
+        name?: string;
+        url?: string | RegExp;
+    }, options?: {
+        timeout?: number;
+    }): Promise<Frame | null>;
+    frameLocator(selector: string): PageFrameLocator;
+    waitForPopup(options?: {
+        timeout?: number;
+        signal?: AbortSignal;
+    }): Promise<Page>;
+    emulateMedia(options?: EmulateMediaOptions): Promise<void>;
     /** Intercept network requests (Playwright-style `page.route`). */
     route(pattern: RoutePattern, handler: RouteHandler): Promise<void>;
     unroute(pattern?: RoutePattern, handler?: RouteHandler): Promise<void>;
@@ -130,13 +210,19 @@ export declare class Page {
     detectForms(options?: {
         timeout?: number;
     }): Promise<DetectedForm[]>;
+    forms(options?: {
+        timeout?: number;
+    }): Promise<DetectedForm[]>;
     findElement(options: FindElementOptions): Promise<InteractiveElement[]>;
     getNodeDetails(backendNodeId: number, options?: {
         timeout?: number;
     }): Promise<NodeDetails>;
-    links(options?: {
-        timeout?: number;
+    links(options?: LinksOptions & {
+        details?: false;
     }): Promise<string[]>;
+    links(options: LinksOptions & {
+        details: true;
+    }): Promise<LinkInfo[]>;
     node(backendNodeId: number): NodeHandle;
     waitForSelectorHandle(selector: string, options?: {
         timeout?: number;
@@ -147,5 +233,7 @@ export declare class Page {
     search(searchPageUrl: string, query: string, options?: SearchOptions): Promise<void>;
     close(): Promise<void>;
     get frameId(): string | undefined;
+    get generation(): number;
     private historyStep;
+    private closeImpl;
 }

@@ -14,11 +14,11 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Browser } from "../dist/index.js";
+import { Browser, createAgentSession } from "../dist/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "..");
-const VELORA_ROOT = process.env.VELORA_ROOT ?? resolve(PACKAGE_ROOT, "../velora");
+const VELORA_ROOT = process.env.VELORA_ROOT ?? resolve(PACKAGE_ROOT, "..");
 const FIXTURE = resolve(__dirname, "fixtures/agent-form.html");
 
 function parseArgs(argv) {
@@ -72,8 +72,14 @@ async function runAgent(page, goalUrl) {
   console.log("\n[agent] goto");
   await page.goto(goalUrl, { waitUntil: "done" });
 
-  console.log("[agent] semantic_tree (text, depth=5)");
-  const tree = await page.semanticTree({ format: "text", maxDepth: 5 });
+  const agent = createAgentSession(page);
+  console.log("[agent] AgentSession.snapshot");
+  const snapshot = await agent.snapshot({
+    include: ["semantic", "forms", "links"],
+    maxDepth: 5,
+    timeout: 10_000,
+  });
+  const tree = snapshot.semanticTree;
   if (process.env.DUMP_TREE === "1") console.log(tree);
 
   console.log("[agent] structuredData");
@@ -81,15 +87,19 @@ async function runAgent(page, goalUrl) {
   const ogTitle = pickMeta(meta.openGraph, "og:title");
   console.log(`  og:title = ${ogTitle ?? "(none)"}`);
 
-  console.log("[agent] detectForms");
-  const forms = await page.detectForms();
+  console.log("[agent] snapshot.forms");
+  const forms = snapshot.forms ?? [];
   console.log(`  forms=${forms.length} fields=${forms[0]?.fields?.length ?? 0}`);
 
   const field = forms[0]?.fields?.find((f) => f.name === "q" && f.backendNodeId);
   if (!field?.backendNodeId) throw new Error("form field q missing backendNodeId");
 
-  console.log("[agent] NodeHandle.fill (from detectForms)");
-  await page.node(field.backendNodeId).fill("velora agent demo");
+  console.log("[agent] AgentSession.perform fill (backend node)");
+  await agent.perform({
+    type: "fill",
+    target: field.backendNodeId,
+    input: "velora agent demo",
+  });
 
   const filled = await page.evaluate(`document.getElementById("q")?.value || ""`);
   if (!filled.includes("velora")) throw new Error(`fill did not apply: ${filled}`);
@@ -106,6 +116,8 @@ async function runAgent(page, goalUrl) {
     markdownBytes: md.length,
     treeLines: String(tree).split("\n").length,
     formFields: forms[0]?.fields?.length ?? 0,
+    links: snapshot.links?.length ?? 0,
+    tools: agent.tools().map((tool) => tool.name),
   };
 }
 

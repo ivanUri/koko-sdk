@@ -4,6 +4,7 @@ import type { GotoWaitOptions } from "./waiter.js";
 export interface NodeHandlePage {
     init(): Promise<void>;
     readonly agent: VeloraClient;
+    readonly generation?: number;
     waitForNavigation(options?: GotoWaitOptions): Promise<void>;
 }
 export interface NodeActionOptions {
@@ -19,7 +20,8 @@ export interface NodePressOptions extends NodeActionOptions {
 export declare class NodeHandle {
     readonly page: NodeHandlePage;
     readonly backendNodeId: number;
-    constructor(page: NodeHandlePage, backendNodeId: number);
+    private readonly documentGeneration;
+    constructor(page: NodeHandlePage, backendNodeId: number, documentGeneration?: number | undefined);
     click(options?: NodeActionOptions): Promise<void>;
     fill(text: string, options?: NodeActionOptions): Promise<void>;
     hover(options?: NodeActionOptions): Promise<void>;
@@ -34,4 +36,5 @@ export declare class NodeHandle {
     setChecked(checked: boolean, options?: NodeActionOptions): Promise<void>;
     press(key: string, options?: NodePressOptions): Promise<void>;
     details(options?: NodeActionOptions): Promise<import("./lp-types.js").NodeDetails>;
+    private assertCurrentDocument;
 }

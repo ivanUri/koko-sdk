@@ -61,4 +61,6 @@ export interface LaunchedVelora {
     process: ChildProcess;
     close(): Promise<void>;
 }
+export declare function waitForCdp(endpoint: string, proc: ChildProcess, timeoutMs: number): Promise<void>;
+export declare function terminateChildProcess(proc: ChildProcess, timeoutMs?: number): Promise<void>;
 export declare function launchVelora(options?: VeloraLaunchOptions): Promise<LaunchedVelora>;

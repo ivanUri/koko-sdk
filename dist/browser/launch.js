@@ -30,26 +30,68 @@ async function getFreePort() {
         });
     });
 }
-async function waitForCdp(endpoint, proc, timeoutMs) {
-    const started = Date.now();
-    const exited = () => new ProtocolError(`velora exited before CDP was ready (code ${proc.exitCode}). `
-        + `Re-run with stdio: "inherit" to see why.`);
-    while (Date.now() - started < timeoutMs) {
+export async function waitForCdp(endpoint, proc, timeoutMs) {
+    let spawnError;
+    const pollEndpoint = async () => {
+        const started = Date.now();
+        const exited = () => new ProtocolError(`velora exited before CDP was ready (code ${proc.exitCode}). `
+            + `Re-run with stdio: "inherit" to see why.`);
+        while (Date.now() - started < timeoutMs) {
+            if (spawnError)
+                throw spawnError;
+            if (proc.exitCode != null)
+                throw exited();
+            try {
+                const res = await fetch(`${endpoint}/json/version`);
+                if (res.ok)
+                    return;
+            }
+            catch {
+                // endpoint not listening yet
+            }
+            await delay(100);
+        }
         if (proc.exitCode != null)
             throw exited();
-        try {
-            const res = await fetch(`${endpoint}/json/version`);
-            if (res.ok)
-                return;
-        }
-        catch {
-            // endpoint not listening yet
-        }
-        await delay(100);
+        throw new ProtocolError(`CDP endpoint not ready: ${endpoint}`, { timeout: timeoutMs });
+    };
+    let onSpawnError;
+    const spawnFailure = new Promise((_, reject) => {
+        onSpawnError = (error) => {
+            spawnError = new ProtocolError(`failed to spawn velora: ${error.message}`, {
+                payload: error,
+            });
+            reject(spawnError);
+        };
+        proc.once("error", onSpawnError);
+    });
+    try {
+        await Promise.race([pollEndpoint(), spawnFailure]);
     }
-    if (proc.exitCode != null)
-        throw exited();
-    throw new ProtocolError(`CDP endpoint not ready: ${endpoint}`, { timeout: timeoutMs });
+    finally {
+        if (onSpawnError)
+            proc.off("error", onSpawnError);
+    }
+}
+export async function terminateChildProcess(proc, timeoutMs = 2_000) {
+    if (proc.exitCode != null || proc.signalCode != null)
+        return;
+    const waitForExit = () => new Promise((resolve) => {
+        const timer = setTimeout(() => {
+            proc.off("exit", onExit);
+            resolve(false);
+        }, timeoutMs);
+        const onExit = () => {
+            clearTimeout(timer);
+            resolve(true);
+        };
+        proc.once("exit", onExit);
+    });
+    proc.kill("SIGTERM");
+    if (await waitForExit())
+        return;
+    proc.kill("SIGKILL");
+    await waitForExit();
 }
 export async function launchVelora(options = {}) {
     const install = resolveVeloraInstall(options);
@@ -125,16 +167,23 @@ export async function launchVelora(options = {}) {
         },
     });
     const endpoint = `http://${host}:${port}`;
-    proc.on("error", (err) => {
-        throw new ProtocolError(`failed to spawn velora: ${err.message}`);
-    });
     await waitForCdp(endpoint, proc, options.launchTimeout ?? 15_000);
     // Launched browsers create targets explicitly; auto-attach is unstable on velora 1.0.x.
     const browser = await Browser.connect(endpoint, {
         ...options,
         enableTargetTracking: options.enableTargetTracking ?? false,
     });
-    return {
+    browser.setProfileInfo({
+        source: profileId ? "remote" : options.profileBundle ? "bundle" : "local",
+        name: profile,
+        profileId,
+        fingerprint: options.fingerprint,
+        fingerprintFolder,
+        userDataDir,
+        known: true,
+    });
+    let closePromise;
+    const launched = {
         browser,
         endpoint,
         port,
@@ -149,20 +198,29 @@ export async function launchVelora(options = {}) {
         args,
         process: proc,
         async close() {
-            await browser.close().catch(() => undefined);
-            if (!proc.killed)
-                proc.kill("SIGTERM");
-            if (hydrated && veloraApi) {
-                await flushRemoteSession({
-                    veloraApi,
-                    apiKey,
-                    profileId: hydrated.profileId,
-                    profileDir: hydrated.profileDir,
-                    record: hydrated.record,
-                }).catch(() => undefined);
-                cleanupHydratedProfile(hydrated.workDir);
-            }
+            if (closePromise)
+                return closePromise;
+            closePromise = (async () => {
+                await browser.close().catch(() => undefined);
+                await terminateChildProcess(proc).catch(() => undefined);
+                if (hydrated && veloraApi) {
+                    try {
+                        await flushRemoteSession({
+                            veloraApi,
+                            apiKey,
+                            profileId: hydrated.profileId,
+                            profileDir: hydrated.profileDir,
+                            record: hydrated.record,
+                        });
+                    }
+                    finally {
+                        cleanupHydratedProfile(hydrated.workDir);
+                    }
+                }
+            })();
+            return closePromise;
         },
     };
+    return launched;
 }
 //# sourceMappingURL=launch.js.map

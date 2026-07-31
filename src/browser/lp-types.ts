@@ -21,6 +21,24 @@ export interface SemanticNode {
   children?: SemanticNode[];
 }
 
+export interface AgentSnapshotOptions {
+  include?: Array<"semanticTree" | "markdown" | "interactiveElements" | "structuredData" | "forms" | "links">;
+  semanticTree?: SemanticTreeOptions;
+  markdown?: MarkdownOptions;
+  timeout?: number;
+}
+
+export interface AgentSnapshot {
+  generation: number;
+  capturedAt: string;
+  semanticTree?: string | SemanticNode;
+  markdown?: string;
+  interactiveElements?: InteractiveElement[];
+  structuredData?: StructuredData;
+  forms?: DetectedForm[];
+  links?: string[];
+}
+
 export interface MarkdownOptions {
   nodeId?: number;
   timeout?: number;
@@ -87,6 +105,24 @@ export interface DetectedForm {
   name?: string | null;
   id?: string | null;
   fields: FormField[];
+}
+
+export interface LinkInfo {
+  url: string;
+  text: string;
+  title?: string | null;
+  rel: string[];
+  target?: string | null;
+  backendNodeId?: number;
+  internal: boolean;
+}
+
+export interface LinksOptions {
+  timeout?: number;
+  /** Return link metadata instead of the backwards-compatible URL list. */
+  details?: boolean;
+  internalOnly?: boolean;
+  externalOnly?: boolean;
 }
 
 export interface NodeDetails {

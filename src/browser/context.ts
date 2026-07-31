@@ -56,6 +56,7 @@ export interface BrowserContextOptions {
  */
 export class BrowserContext {
   private readonly _pages = new Set<Page>();
+  private closePromise?: Promise<void>;
   private readonly initScripts: string[] = [];
   private viewport?: ViewportSize;
   private readonly opts: BrowserContextOptions;
@@ -163,7 +164,22 @@ export class BrowserContext {
     return [...this._pages];
   }
 
+  async waitForPage(options: { timeout?: number; signal?: AbortSignal } = {}): Promise<Page> {
+    const page = await this.browser.waitForPage(options);
+    this._pages.add(page);
+    page.onClose(() => this._pages.delete(page));
+    for (const script of this.initScripts) await page.addInitScript(script);
+    await this.applyOptionsTo(page);
+    return page;
+  }
+
   async close(): Promise<void> {
+    if (this.closePromise) return this.closePromise;
+    this.closePromise = this.closeImpl();
+    return this.closePromise;
+  }
+
+  private async closeImpl(): Promise<void> {
     await Promise.all([...this._pages].map((page) => page.close().catch(() => undefined)));
     this._pages.clear();
     this.browser.releaseContext(this);

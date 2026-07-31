@@ -8,6 +8,7 @@ export type WaitUntil = "none" | "commit" | "domcontentloaded" | "load" | "netwo
 export interface GotoWaitOptions {
   waitUntil?: WaitUntil;
   timeout?: number;
+  signal?: AbortSignal;
   networkIdleMs?: number;
 }
 
@@ -27,16 +28,16 @@ export class PageWaiter {
     const timeout = options.timeout ?? 30_000;
 
     if (waitUntil === "domcontentloaded") {
-      await this.session.waitFor("Page.domContentEventFired", { timeout });
+      await this.session.waitFor("Page.domContentEventFired", { timeout, signal: options.signal });
       return;
     }
     if (waitUntil === "load") {
-      await this.session.waitFor("Page.loadEventFired", { timeout });
+      await this.session.waitFor("Page.loadEventFired", { timeout, signal: options.signal });
       return;
     }
     // networkidle / done: wait for load (best-effort) then network idle.
-    await this.session.waitFor("Page.loadEventFired", { timeout }).catch(() => undefined);
-    await this.network.waitForIdle({ idleMs: options.networkIdleMs, timeout });
+    await this.session.waitFor("Page.loadEventFired", { timeout, signal: options.signal }).catch(() => undefined);
+    await this.network.waitForIdle({ idleMs: options.networkIdleMs, timeout, signal: options.signal });
     if (waitUntil === "done") {
       await this.pollExpression("document.readyState === 'complete'", timeout, "Waiting for document complete");
       await delay(32);

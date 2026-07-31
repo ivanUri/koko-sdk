@@ -50,8 +50,8 @@ export class CDPClient {
             await this.send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }).catch(() => undefined);
         }
     }
-    send(method, params, sessionId, timeout) {
-        return this.transport.send(method, params, { sessionId, timeout });
+    send(method, params, sessionId, timeout, signal) {
+        return this.transport.send(method, params, { sessionId, timeout, signal });
     }
     on(event, handler) {
         return this.transport.on(event, (message) => handler((message.params ?? {})));
@@ -69,15 +69,21 @@ export class CDPClient {
         });
     }
     waitFor(event, options = {}) {
+        let off = () => undefined;
         const promise = new Promise((resolve) => {
-            const off = this.on(event, (payload) => {
+            off = this.on(event, (payload) => {
                 if (options.predicate && !options.predicate(payload))
                     return;
                 off();
                 resolve(payload);
             });
         });
-        return withTimeout(promise, { timeout: options.timeout, label: `Waiting for ${event}` });
+        return withTimeout(promise, {
+            timeout: options.timeout,
+            signal: options.signal,
+            label: `Waiting for ${event}`,
+        })
+            .finally(() => off());
     }
     onSession(sessionId, event, handler) {
         return this.transport.on(`${sessionId}:${event}`, (message) => handler((message.params ?? {})));
@@ -86,15 +92,22 @@ export class CDPClient {
         return this.transport.once(`${sessionId}:${event}`, (message) => handler((message.params ?? {})));
     }
     waitForSession(sessionId, event, options = {}) {
+        let off = () => undefined;
         const promise = new Promise((resolve) => {
-            const off = this.onSession(sessionId, event, (payload) => {
+            off = this.onSession(sessionId, event, (payload) => {
                 if (options.predicate && !options.predicate(payload))
                     return;
                 off();
                 resolve(payload);
             });
         });
-        return withTimeout(promise, { timeout: options.timeout, label: `Waiting for ${event}`, sessionId });
+        return withTimeout(promise, {
+            timeout: options.timeout,
+            signal: options.signal,
+            label: `Waiting for ${event}`,
+            sessionId,
+        })
+            .finally(() => off());
     }
     async createTarget(url = "about:blank") {
         const result = await this.send("Target.createTarget", { url });

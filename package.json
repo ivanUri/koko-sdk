@@ -5,12 +5,40 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./driver": {
+      "types": "./dist/driver.d.ts",
+      "import": "./dist/driver.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "import": "./dist/agent.js"
+    },
+    "./workflow": {
+      "types": "./dist/workflow.d.ts",
+      "import": "./dist/workflow.js"
+    },
+    "./cdp": {
+      "types": "./dist/cdp/client.d.ts",
+      "import": "./dist/cdp/client.js"
+    },
+    "./profile": {
+      "types": "./dist/profile.d.ts",
+      "import": "./dist/profile.js"
+    }
+  },
   "bin": {
     "velora-fetch": "dist/cli/fetch.js"
   },
   "files": [
     "dist",
     "src",
+    "docs",
+    "CHANGELOG.md",
     "tsconfig.json",
     "README.md"
   ],
@@ -32,12 +60,18 @@
     "antidetect"
   ],
   "license": "MIT",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepare": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:package": "npm run build && node scripts/check-package.mjs",
+    "smoke:chrome": "npm run build && node scripts/smoke-chrome-driver.mjs",
     "prepublishOnly": "npm run build",
     "example:crawl": "node examples/crawl-wikipedia.mjs --launch --limit 8 --concurrency 2",
     "example:agent": "node examples/agent-semantic.mjs --launch",

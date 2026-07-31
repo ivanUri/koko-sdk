@@ -3,6 +3,7 @@ export interface TimeoutOptions {
     label?: string;
     method?: string;
     sessionId?: string;
+    signal?: AbortSignal;
 }
 export declare function withTimeout<T>(promise: Promise<T>, options?: TimeoutOptions): Promise<T>;
 export declare function delay(ms: number): Promise<void>;

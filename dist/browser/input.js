@@ -85,6 +85,15 @@ export class Mouse {
             await this.up({ ...options, clickCount: i + 1 });
         }
     }
+    async wheel(deltaX, deltaY, options = {}) {
+        await this.session.send("Input.synthesizeScrollGesture", {
+            x: this.x,
+            y: this.y,
+            xDistance: -deltaX,
+            yDistance: -deltaY,
+            speed: 800,
+        }, options.timeout);
+    }
 }
 function keySpec(key) {
     const named = {

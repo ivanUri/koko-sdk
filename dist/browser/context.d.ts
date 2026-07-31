@@ -55,6 +55,7 @@ export interface BrowserContextOptions {
 export declare class BrowserContext {
     private readonly browser;
     private readonly _pages;
+    private closePromise?;
     private readonly initScripts;
     private viewport?;
     private readonly opts;
@@ -73,7 +74,12 @@ export declare class BrowserContext {
     addInitScript(source: string | Function): Promise<void>;
     setViewportSize(size: ViewportSize): Promise<void>;
     pages(): Page[];
+    waitForPage(options?: {
+        timeout?: number;
+        signal?: AbortSignal;
+    }): Promise<Page>;
     close(): Promise<void>;
+    private closeImpl;
     private applyOptionsTo;
     private applyStorageStateCookies;
     private ensurePage;

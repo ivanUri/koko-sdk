@@ -3,6 +3,7 @@ import type { EventHandler, WildcardEventHandler } from "./events.js";
 import { CDPSession } from "./session.js";
 export interface WaitForEventOptions<T> {
     timeout?: number;
+    signal?: AbortSignal;
     predicate?: (payload: T) => boolean;
 }
 export declare class CDPClient {
@@ -17,7 +18,7 @@ export declare class CDPClient {
         autoAttach?: boolean;
         discover?: boolean;
     }): Promise<void>;
-    send<T = unknown>(method: string, params?: unknown, sessionId?: string, timeout?: number): Promise<T>;
+    send<T = unknown>(method: string, params?: unknown, sessionId?: string, timeout?: number, signal?: AbortSignal): Promise<T>;
     on<T = unknown>(event: string, handler: EventHandler<T>): () => void;
     once<T = unknown>(event: string, handler: EventHandler<T>): () => void;
     off<T = unknown>(event: string, handler: EventHandler<T>): void;

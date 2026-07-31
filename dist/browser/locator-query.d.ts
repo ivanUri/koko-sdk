@@ -30,6 +30,13 @@ export type LocatorQuery = {
 } | {
     kind: "testId";
     testId: string | RegExp;
+} | {
+    kind: "filter";
+    hasText?: string | RegExp;
+    has?: LocatorQuery[];
+} | {
+    kind: "union";
+    branches: LocatorQuery[][];
 };
 export interface LocatorResolveOptions {
     /** 0-based index when multiple elements match (default: 0 = first). */
@@ -41,3 +48,5 @@ export interface LocatorResolveOptions {
 export declare function buildResolveExpression(queries: LocatorQuery[], options?: LocatorResolveOptions): string;
 /** Count expression for locator.count(). */
 export declare function buildCountExpression(queries: LocatorQuery[]): string;
+/** Build a self-contained IIFE returning every visible matched element. */
+export declare function buildAllExpression(queries: LocatorQuery[]): string;

@@ -78,6 +78,7 @@ export class NetworkTracker {
     }
     waitForIdleAfterEnabled(options = {}) {
         const idleMs = options.idleMs ?? 500;
+        let cleanup = () => undefined;
         const promise = new Promise((resolve) => {
             let timer;
             const finish = () => {
@@ -97,9 +98,19 @@ export class NetworkTracker {
                 }
             };
             this.idleListeners.add(listener);
+            cleanup = () => {
+                this.idleListeners.delete(listener);
+                if (timer)
+                    clearTimeout(timer);
+            };
             listener();
         });
-        return withTimeout(promise, { timeout: options.timeout, label: "Waiting for network idle" });
+        return withTimeout(promise, {
+            timeout: options.timeout,
+            signal: options.signal,
+            label: "Waiting for network idle",
+        })
+            .finally(cleanup);
     }
     /**
      * Resolve with the first request whose URL matches. Subscribes before
@@ -115,8 +126,9 @@ export class NetworkTracker {
     }
     waitForNetworkEvent(event, match, options, label) {
         const predicate = compileMatch(match);
+        let off = () => undefined;
         const promise = new Promise((resolve, reject) => {
-            const off = this.on(event, (payload) => {
+            off = this.on(event, (payload) => {
                 const value = payload;
                 Promise.resolve(predicate(value)).then((ok) => {
                     if (!ok)
@@ -129,7 +141,11 @@ export class NetworkTracker {
                 });
             });
         });
-        return withTimeout(promise, { timeout: options.timeout ?? 30_000, label });
+        return withTimeout(promise, {
+            timeout: options.timeout ?? 30_000,
+            signal: options.signal,
+            label,
+        }).finally(() => off());
     }
     onRequest(event) {
         const previous = this.requests.get(event.requestId);

@@ -24,6 +24,8 @@ export declare class Route {
     }): Promise<void>;
     abort(errorReason?: "Aborted" | "BlockedByClient"): Promise<void>;
     fulfill(options?: RouteFulfillOptions): Promise<void>;
+    /** Whether this paused request has reached a terminal Fetch action. */
+    get isHandled(): boolean;
     private ensureOnce;
 }
 export type RouteHandler = (route: Route) => void | Promise<void>;
@@ -40,4 +42,5 @@ export declare class RouteRegistry {
     dispose(): void;
     private ensureFetchEnabled;
     private onRequestPaused;
+    private disableFetch;
 }

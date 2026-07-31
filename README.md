@@ -41,6 +41,49 @@ Also: `VELORA_BIN`, `VELORA_ROOT` / `dataRoot`, or `binary` for full control.
 
 TypeScript-first; talks directly to Chrome DevTools Protocol over WebSocket. No Playwright or Puppeteer internals.
 
+### Driver and extension layers
+
+Portable automation remains on `Browser`, `BrowserContext`, `Page` and
+`Locator`. Backend selection and optional features are explicit:
+
+```ts
+import { VeloraDriver } from "velora-sdk/driver";
+
+const driver = new VeloraDriver();
+console.log(driver.capabilities());
+const browser = await driver.connect("http://127.0.0.1:9222");
+```
+
+`ChromeCdpDriver` is an experimental connect-only adapter for an existing
+Chromium CDP endpoint. It does not advertise Velora semantic capabilities.
+
+Velora-native functionality is namespaced under `page.velora`:
+
+```ts
+const snapshot = await page.velora.snapshot({
+  include: ["semanticTree", "forms", "links"],
+});
+```
+
+`page.agent` remains available as a compatibility alias.
+
+For a runtime agent facade with validated actions and tool schemas:
+
+```ts
+import { createAgentSession } from "velora-sdk/agent";
+
+const agent = createAgentSession(page);
+const snapshot = await agent.snapshot({
+  include: ["semantic", "forms", "links"],
+  maxDepth: 6,
+});
+
+await agent.perform({ type: "click", target: "#submit" });
+await agent.perform({ type: "fill", target: "#email", input: "me@example.com" });
+
+const tools = agent.tools(); // semanticTree, markdown, forms, links, snapshot, click, fill
+```
+
 The public API is modeled after [Playwright](https://playwright.dev/docs/api/class-playwright) so automation scripts port with minimal changes.
 
 ```ts
@@ -464,4 +507,81 @@ to run in CI.
 ```bash
 npm test          # vitest run
 npm run test:watch
+```
+## Velora-exclusive APIs
+
+Velora keeps portable browser automation separate from semantic and agent
+features:
+
+```ts
+const tree = await page.velora.semanticTree({ maxDepth: 6 });
+const markdown = await page.velora.markdown();
+const forms = await page.velora.forms();
+const links = await page.velora.links({ details: true, internalOnly: true });
+
+const article = await page.extract<{ title: string }>({
+  expression: `({ title: document.querySelector("h1")?.textContent?.trim() })`,
+  schema: {
+    type: "object",
+    required: ["title"],
+    properties: { title: { type: "string" } },
+  },
+});
+```
+
+## Common browser interactions
+
+```ts
+await page.scrollBy(0, 600);
+await page.mouse.wheel(0, 300);
+await page.getByText("Checkout").scrollIntoViewIfNeeded();
+await page.getByLabel("Email").focus();
+await page.getByLabel("Email").clear();
+await page.getByLabel("Avatar").setInputFiles("/absolute/path/avatar.png");
+
+const downloadPromise = page.waitForDownload({ path: "./downloads" });
+await page.getByText("Export").click();
+const download = await downloadPromise;
+await download.saveAs("./report.csv");
+
+const payment = page.frameLocator("iframe[name=payment]");
+await payment.locator("#card-number").fill("4242424242424242");
+
+const popupPromise = page.waitForPopup();
+await page.getByText("Open details").click();
+const popup = await popupPromise;
+```
+
+Other portable helpers include `dblclick()`, `selectText()`, `dispatchEvent()`,
+`boundingBox()`, `evaluate()`, `evaluateAll()`, `allTextContents()`,
+`page.setContent()`, `waitForLoadState()`, `bringToFront()` and
+`emulateMedia()`.
+
+Browser identity is process-bound. A persona may configure context-level
+locale, timezone, geolocation, viewport and headers, but cannot silently switch
+the active process profile:
+
+```ts
+const launched = await Browser.launch({ profile: "research" });
+console.log(launched.browser.browserProfile());
+const context = launched.browser.persona({
+  name: "US researcher",
+  profile: "research",
+  locale: "en-US",
+  timezoneId: "America/New_York",
+});
+```
+
+Reasoning is provider-neutral and opt-in. Implement `AgentReasoner` for the
+model provider you use; Velora supplies snapshots, deterministic tools, policy,
+audit, plan validation and workflow execution:
+
+```ts
+const agent = createAgentSession(page, {
+  reasoner,
+  authorize: (action) => action.risk !== "destructive",
+  audit: (event) => auditLog.push(event),
+});
+const plan = await agent.planning("Complete the contact form");
+const results = await agent.workflow(plan).run();
 ```

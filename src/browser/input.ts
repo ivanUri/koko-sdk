@@ -20,6 +20,10 @@ export interface MouseMoveOptions {
   timeout?: number;
 }
 
+export interface MouseWheelOptions {
+  timeout?: number;
+}
+
 /** Low-level keyboard input, useful when no locator is available. */
 export class Keyboard {
   constructor(private readonly session: CDPSession) {}
@@ -110,6 +114,16 @@ export class Mouse {
       await this.down({ ...options, clickCount: i + 1 });
       await this.up({ ...options, clickCount: i + 1 });
     }
+  }
+
+  async wheel(deltaX: number, deltaY: number, options: MouseWheelOptions = {}): Promise<void> {
+    await this.session.send("Input.synthesizeScrollGesture", {
+      x: this.x,
+      y: this.y,
+      xDistance: -deltaX,
+      yDistance: -deltaY,
+      speed: 800,
+    }, options.timeout);
   }
 }
 

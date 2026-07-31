@@ -9,6 +9,7 @@
 export class BrowserContext {
     browser;
     _pages = new Set();
+    closePromise;
     initScripts = [];
     viewport;
     opts;
@@ -102,7 +103,22 @@ export class BrowserContext {
     pages() {
         return [...this._pages];
     }
+    async waitForPage(options = {}) {
+        const page = await this.browser.waitForPage(options);
+        this._pages.add(page);
+        page.onClose(() => this._pages.delete(page));
+        for (const script of this.initScripts)
+            await page.addInitScript(script);
+        await this.applyOptionsTo(page);
+        return page;
+    }
     async close() {
+        if (this.closePromise)
+            return this.closePromise;
+        this.closePromise = this.closeImpl();
+        return this.closePromise;
+    }
+    async closeImpl() {
         await Promise.all([...this._pages].map((page) => page.close().catch(() => undefined)));
         this._pages.clear();
         this.browser.releaseContext(this);

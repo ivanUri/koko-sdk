@@ -15,6 +15,7 @@ export interface CDPMessage {
 export interface TransportSendOptions {
     timeout?: number;
     sessionId?: string;
+    signal?: AbortSignal;
 }
 export interface WebSocketTransportOptions {
     defaultTimeout?: number;
@@ -39,4 +40,5 @@ export declare class WebSocketTransport {
     private bindSocket;
     private handleMessage;
     private rejectAll;
+    private takePending;
 }

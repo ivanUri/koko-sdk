@@ -1,6 +1,7 @@
 import type { CDPSession } from "../cdp/session.js";
-import type { DetectedForm, DialogOptions, FindElementOptions, InteractiveElement, MarkdownOptions, NodeDetails, ScrollOptions, SelectorActionOptions, SemanticNode, SemanticTreeOptions, StructuredData } from "./lp-types.js";
+import type { DetectedForm, DialogOptions, FindElementOptions, InteractiveElement, MarkdownOptions, NodeDetails, ScrollOptions, SelectorActionOptions, SemanticNode, SemanticTreeOptions, StructuredData, LinkInfo, LinksOptions, AgentSnapshot, AgentSnapshotOptions } from "./lp-types.js";
 import type { Page } from "./page.js";
+import type { AgentTool } from "../agent.js";
 /**
  * Velora-namespaced semantic and locator API.
  *
@@ -12,6 +13,8 @@ export declare class VeloraClient {
     private readonly page;
     private readonly session;
     constructor(page: Page, session: CDPSession);
+    tools(): AgentTool[];
+    snapshot(options?: AgentSnapshotOptions): Promise<AgentSnapshot>;
     markdown(options?: MarkdownOptions): Promise<string>;
     semanticTree(options?: SemanticTreeOptions): Promise<string | SemanticNode>;
     getInteractiveElements(options?: {
@@ -24,13 +27,20 @@ export declare class VeloraClient {
     detectForms(options?: {
         timeout?: number;
     }): Promise<DetectedForm[]>;
+    /** Canonical Velora extension name; detectForms remains backwards compatible. */
+    forms(options?: {
+        timeout?: number;
+    }): Promise<DetectedForm[]>;
     getNodeDetails(backendNodeId: number, options?: {
         timeout?: number;
     }): Promise<NodeDetails>;
     findElement(options: FindElementOptions): Promise<InteractiveElement[]>;
-    links(options?: {
-        timeout?: number;
+    links(options?: LinksOptions & {
+        details?: false;
     }): Promise<string[]>;
+    links(options: LinksOptions & {
+        details: true;
+    }): Promise<LinkInfo[]>;
     waitForSelectorNode(selector: string, options?: {
         timeout?: number;
     }): Promise<number>;

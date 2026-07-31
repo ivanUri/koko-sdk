@@ -14,6 +14,7 @@ export type UrlMatch<T> = string | RegExp | ((value: T) => boolean | Promise<boo
 
 export interface WaitForNetworkOptions {
   timeout?: number;
+  signal?: AbortSignal;
 }
 
 const DEFAULT_MAX_REQUESTS = 2048;
@@ -104,12 +105,13 @@ export class NetworkTracker {
     this.inflight.clear();
   }
 
-  waitForIdle(options: { idleMs?: number; timeout?: number } = {}): Promise<void> {
+  waitForIdle(options: { idleMs?: number; timeout?: number; signal?: AbortSignal } = {}): Promise<void> {
     return this.ensureEnabled().then(() => this.waitForIdleAfterEnabled(options));
   }
 
-  private waitForIdleAfterEnabled(options: { idleMs?: number; timeout?: number } = {}): Promise<void> {
+  private waitForIdleAfterEnabled(options: { idleMs?: number; timeout?: number; signal?: AbortSignal } = {}): Promise<void> {
     const idleMs = options.idleMs ?? 500;
+    let cleanup = () => undefined;
     const promise = new Promise<void>((resolve) => {
       let timer: NodeJS.Timeout | undefined;
       const finish = () => {
@@ -126,9 +128,18 @@ export class NetworkTracker {
         }
       };
       this.idleListeners.add(listener);
+      cleanup = () => {
+        this.idleListeners.delete(listener);
+        if (timer) clearTimeout(timer);
+      };
       listener();
     });
-    return withTimeout(promise, { timeout: options.timeout, label: "Waiting for network idle" });
+    return withTimeout(promise, {
+      timeout: options.timeout,
+      signal: options.signal,
+      label: "Waiting for network idle",
+    })
+      .finally(cleanup);
   }
 
   /**
@@ -152,8 +163,9 @@ export class NetworkTracker {
     label: string,
   ): Promise<V> {
     const predicate = compileMatch(match);
+    let off: () => void = () => undefined;
     const promise = new Promise<V>((resolve, reject) => {
-      const off = this.on(event, (payload) => {
+      off = this.on(event, (payload) => {
         const value = payload as unknown as V;
         Promise.resolve(predicate(value)).then(
           (ok) => {
@@ -168,7 +180,11 @@ export class NetworkTracker {
         );
       });
     });
-    return withTimeout(promise, { timeout: options.timeout ?? 30_000, label });
+    return withTimeout(promise, {
+      timeout: options.timeout ?? 30_000,
+      signal: options.signal,
+      label,
+    }).finally(() => off());
   }
 
   private onRequest(event: any): void {

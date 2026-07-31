@@ -1,5 +1,9 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { buildCountExpression, buildResolveExpression } from "../src/browser/locator-query.js";
+import {
+  buildAllExpression,
+  buildCountExpression,
+  buildResolveExpression,
+} from "../src/browser/locator-query.js";
 
 // These expression strings are shipped verbatim to `Runtime.evaluate` in production (see
 // browser/actions.ts / browser/locator.ts). Evaluating them here against a real DOM (jsdom)
@@ -75,5 +79,34 @@ describe("locator-query resolver", () => {
   it("count() reflects the number of matches", () => {
     document.body.innerHTML = `<li>1</li><li>2</li><li>3</li>`;
     expect(run<number>(buildCountExpression([{ kind: "css", selector: "li" }]))).toBe(3);
+  });
+
+  it("filters matches by descendant text and nested locator", () => {
+    document.body.innerHTML = `
+      <article><h2>First</h2><button>Open</button></article>
+      <article><h2>Second</h2></article>
+    `;
+    const expression = buildAllExpression([
+      { kind: "css", selector: "article" },
+      {
+        kind: "filter",
+        hasText: "First",
+        has: [{ kind: "role", role: "button", name: "Open", exact: true }],
+      },
+    ]);
+    expect(run<Element[]>(expression)).toHaveLength(1);
+    expect(run<Element[]>(expression)[0]?.querySelector("h2")?.textContent).toBe("First");
+  });
+
+  it("unions two independent locator branches", () => {
+    document.body.innerHTML = `<button>A</button><a href="#">B</a><span>C</span>`;
+    const expression = buildAllExpression([{
+      kind: "union",
+      branches: [
+        [{ kind: "role", role: "button" }],
+        [{ kind: "role", role: "link" }],
+      ],
+    }]);
+    expect(run<Element[]>(expression).map((element) => element.textContent)).toEqual(["A", "B"]);
   });
 });

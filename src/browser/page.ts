@@ -11,6 +11,15 @@ import { VeloraClient } from "./lp-client.js";
 import { NodeHandle } from "./node-handle.js";
 import { searchGoogle } from "./google-search.js";
 import { Keyboard, Mouse } from "./input.js";
+import { waitForDownload, type Download } from "./download.js";
+import { Frame, PageFrameLocator, flattenFrameTree } from "./frame.js";
+import {
+  ConsoleMessage,
+  PageError,
+  consoleMessageFromCdp,
+  pageErrorFromCdp,
+} from "./console-message.js";
+import type { Request, Response } from "./request.js";
 import type {
   DetectedForm,
   DialogOptions,
@@ -18,6 +27,8 @@ import type {
   GoogleExtractResult,
   GoogleSearchOptions,
   InteractiveElement,
+  LinkInfo,
+  LinksOptions,
   MarkdownOptions,
   NodeDetails,
   SemanticNode,
@@ -27,6 +38,7 @@ import type {
 
 export interface EvaluateOptions {
   timeout?: number;
+  signal?: AbortSignal;
 }
 
 export interface ExtractOptions {
@@ -34,8 +46,19 @@ export interface ExtractOptions {
   ttfx?: string;
   /** Final extract expression; must returnByValue. */
   expression?: string;
+  /** Optional JSON-Schema subset validated after evaluation. */
+  schema?: ExtractSchema;
   timeout?: number;
   pollMs?: number;
+}
+
+export interface ExtractSchema {
+  type?: "object" | "array" | "string" | "number" | "boolean" | "null";
+  properties?: Record<string, ExtractSchema>;
+  items?: ExtractSchema;
+  required?: string[];
+  enum?: unknown[];
+  additionalProperties?: boolean;
 }
 
 export interface ExtractResult {
@@ -70,6 +93,17 @@ export interface PdfOptions {
   timeout?: number;
 }
 
+export interface ScrollPageOptions {
+  timeout?: number;
+  behavior?: "auto" | "instant" | "smooth";
+}
+
+export interface EmulateMediaOptions {
+  media?: "screen" | "print" | "";
+  colorScheme?: "dark" | "light" | "no-preference";
+  reducedMotion?: "reduce" | "no-preference";
+}
+
 export interface ViewportSize {
   width: number;
   height: number;
@@ -79,15 +113,31 @@ export interface ClickOptions extends ActionOptions {
   waitForNavigation?: boolean | GotoWaitOptions;
 }
 
+export interface NavigationResult {
+  response: Response | null;
+  url: string;
+  frameId?: string;
+  loaderId?: string;
+}
+
+export interface PageEventMap {
+  console: ConsoleMessage;
+  pageerror: PageError;
+  request: Request;
+  response: Response;
+  requestfailed: Request;
+  requestfinished: Request;
+}
+
 const DEFAULT_TTFX = `(() => {
-  const el = document.querySelector("#firstHeading") || document.querySelector("h1");
-  return el?.textContent?.trim() || null;
+  const body = document.body;
+  return body && (body.innerText?.trim().length || body.childElementCount > 0);
 })()`;
 
 const DEFAULT_EXTRACT = `(() => {
-  const links = document.querySelectorAll('a[href^="/wiki/"]:not([href*=":"])');
-  const title = document.querySelector("#firstHeading")?.textContent?.trim()
-    || document.title.replace(/ - Wikipedia$/, "").trim();
+  const links = document.querySelectorAll('a[href]');
+  const title = document.querySelector("h1")?.textContent?.trim()
+    || document.title.trim();
   return {
     title,
     linkCount: links.length,
@@ -102,6 +152,37 @@ const CONTENT_EXPR = `(() => {
   return (dt || '<!DOCTYPE html>') + '\\n' + html;
 })()`;
 
+function validateExtractSchema(value: unknown, schema: ExtractSchema, path = "$"): string[] {
+  const errors: string[] = [];
+  const actualType = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+  if (schema.type && actualType !== schema.type) {
+    return [`${path} must be ${schema.type}, got ${actualType}`];
+  }
+  if (schema.enum && !schema.enum.some((candidate) => Object.is(candidate, value))) {
+    errors.push(`${path} must be one of the declared enum values`);
+  }
+  if (actualType === "object" && value) {
+    const record = value as Record<string, unknown>;
+    for (const key of schema.required ?? []) {
+      if (!(key in record)) errors.push(`${path}.${key} is required`);
+    }
+    for (const [key, child] of Object.entries(schema.properties ?? {})) {
+      if (key in record) errors.push(...validateExtractSchema(record[key], child, `${path}.${key}`));
+    }
+    if (schema.additionalProperties === false && schema.properties) {
+      for (const key of Object.keys(record)) {
+        if (!(key in schema.properties)) errors.push(`${path}.${key} is not allowed`);
+      }
+    }
+  }
+  if (actualType === "array" && schema.items) {
+    (value as unknown[]).forEach((item, index) => {
+      errors.push(...validateExtractSchema(item, schema.items!, `${path}[${index}]`));
+    });
+  }
+  return errors;
+}
+
 export class Page {
   readonly network: NetworkTracker;
   readonly waiter: PageWaiter;
@@ -109,9 +190,14 @@ export class Page {
   readonly mouse: Mouse;
   /** Velora LP domain — AI extraction and backend-node agent actions. */
   readonly agent: VeloraClient;
+  /** Stable Velora extension namespace; `agent` remains as a compatibility alias. */
+  readonly velora: VeloraClient;
   private readonly routes: RouteRegistry;
   private initialized = false;
+  private closePromise?: Promise<void>;
   private mainFrameId?: string;
+  private documentGeneration = 0;
+  private currentPageUrl = "about:blank";
   private readonly closeHooks = new Set<() => void>();
 
   constructor(readonly session: CDPSession) {
@@ -121,11 +207,35 @@ export class Page {
     this.keyboard = new Keyboard(session);
     this.mouse = new Mouse(session);
     this.agent = new VeloraClient(this, session);
+    this.velora = this.agent;
   }
 
   /** Register cleanup when page.close() runs (used by Browser/Context). */
   onClose(hook: () => void): void {
     this.closeHooks.add(hook);
+  }
+
+  on<K extends keyof PageEventMap>(
+    event: K,
+    handler: (payload: PageEventMap[K]) => void,
+  ): () => void {
+    if (
+      event === "request"
+      || event === "response"
+      || event === "requestfailed"
+      || event === "requestfinished"
+    ) {
+      return this.network.on(event, handler as never);
+    }
+    void this.init();
+    if (event === "console") {
+      return this.session.on("Runtime.consoleAPICalled", (payload) => {
+        handler(consoleMessageFromCdp(payload) as PageEventMap[K]);
+      });
+    }
+    return this.session.on("Runtime.exceptionThrown", (payload) => {
+      handler(pageErrorFromCdp(payload) as PageEventMap[K]);
+    });
   }
 
   async init(): Promise<void> {
@@ -134,7 +244,11 @@ export class Page {
 
     this.session.on<any>("Page.frameNavigated", (event) => {
       const frame = event?.frame;
-      if (frame && !frame.parentId) this.mainFrameId = frame.id;
+      if (frame && !frame.parentId) {
+        this.mainFrameId = frame.id;
+        if (typeof frame.url === "string") this.currentPageUrl = frame.url;
+        this.documentGeneration++;
+      }
     });
     this.session.on<any>("Inspector.detached", (event) => {
       this.session.markClosed(new TargetClosedError(event?.reason ?? "Inspector detached", { sessionId: this.session.sessionId }));
@@ -144,20 +258,43 @@ export class Page {
     await this.session.send("Runtime.enable").catch(() => undefined);
 
     const tree = await this.session.send<any>("Page.getFrameTree").catch(() => undefined);
-    this.mainFrameId = tree?.frameTree?.frame?.id ?? this.mainFrameId;
+    const rootFrame = tree?.frameTree?.frame;
+    this.mainFrameId = rootFrame?.id ?? this.mainFrameId;
+    if (typeof rootFrame?.url === "string") this.currentPageUrl = rootFrame.url;
   }
 
-  async goto(url: string, options: GotoWaitOptions = {}): Promise<void> {
+  async goto(url: string, options: GotoWaitOptions = {}): Promise<NavigationResult> {
     await this.init();
     this.network.reset();
+    await this.network.ensureEnabled();
+    let navigationResponse: Response | null = null;
+    const offResponse = this.network.on("response", (response) => {
+      if (response.request.isNavigationRequest()) navigationResponse = response;
+    });
     const waitPromise = this.waiter.waitForNavigation(options);
     waitPromise.catch(() => undefined);
-    const result = await this.session.send<any>("Page.navigate", { url }, options.timeout);
-    if (result.errorText) {
-      throw new NavigationError(result.errorText, { method: "Page.navigate", sessionId: this.session.sessionId, payload: result });
+    try {
+      const result = await this.session.send<any>("Page.navigate", { url }, options.timeout, options.signal);
+      if (result.errorText) {
+        throw new NavigationError(result.errorText, {
+          method: "Page.navigate",
+          sessionId: this.session.sessionId,
+          payload: result,
+          url,
+        });
+      }
+      if (result.frameId) this.mainFrameId = result.frameId;
+      this.currentPageUrl = url;
+      await waitPromise;
+      return {
+        response: navigationResponse,
+        url: this.currentPageUrl,
+        frameId: result.frameId ?? this.mainFrameId,
+        loaderId: result.loaderId,
+      };
+    } finally {
+      offResponse();
     }
-    if (result.frameId) this.mainFrameId = result.frameId;
-    await waitPromise;
   }
 
   async evaluate<T = unknown>(expressionOrFunction: string | Function, options: EvaluateOptions = {}): Promise<T> {
@@ -176,7 +313,7 @@ export class Page {
           expression,
           returnByValue: true,
           awaitPromise: true,
-        }, options.timeout);
+        }, options.timeout, options.signal);
         if (result.exceptionDetails) {
           const ex = result.exceptionDetails;
           const desc = ex?.exception?.description ?? ex?.exception?.value ?? ex?.text ?? "Runtime.evaluate failed";
@@ -205,17 +342,28 @@ export class Page {
 
   /**
    * Crawler helper: wait for a TTFX probe then run a structured extract expression.
-   * Defaults match the Wikipedia crawl benchmark.
+   * Defaults are site-independent; pass expressions for domain-specific schemas.
    */
-  async extract(options: ExtractOptions = {}): Promise<ExtractResult> {
+  async extract<T extends Record<string, unknown> = ExtractResult>(
+    options: ExtractOptions = {},
+  ): Promise<T> {
     await this.init();
     const timeout = options.timeout ?? 30_000;
     const ttfx = options.ttfx ?? DEFAULT_TTFX;
     const expression = options.expression ?? DEFAULT_EXTRACT;
     await this.waiter.pollUntilTruthy(ttfx, { timeout, label: "Waiting for extractable content" });
-    const value = await this.evaluate<ExtractResult>(expression, { timeout });
+    const value = await this.evaluate<T>(expression, { timeout });
     if (!value || typeof value !== "object") {
       throw new ProtocolError("extract returned invalid payload", { method: "Page.extract" });
+    }
+    if (options.schema) {
+      const errors = validateExtractSchema(value, options.schema);
+      if (errors.length) {
+        throw new ProtocolError(`extract schema validation failed: ${errors.join("; ")}`, {
+          method: "Page.extract",
+          payload: { errors },
+        });
+      }
     }
     return value;
   }
@@ -313,21 +461,27 @@ export class Page {
     return this.evaluate<string>("location.href");
   }
 
-  async reload(options: GotoWaitOptions = {}): Promise<void> {
+  /** Last main-frame URL observed by the driver, without a protocol round-trip. */
+  currentUrl(): string {
+    return this.currentPageUrl;
+  }
+
+  async reload(options: GotoWaitOptions = {}): Promise<NavigationResult> {
     await this.init();
     this.network.reset();
     const waitPromise = this.waiter.waitForNavigation(options);
     waitPromise.catch(() => undefined);
-    await this.session.send("Page.reload", { ignoreCache: false }, options.timeout);
+    await this.session.send("Page.reload", { ignoreCache: false }, options.timeout, options.signal);
     await waitPromise;
+    return { response: null, url: this.currentPageUrl, frameId: this.mainFrameId };
   }
 
-  async goBack(options: GotoWaitOptions = {}): Promise<void> {
-    await this.historyStep(-1, options);
+  async goBack(options: GotoWaitOptions = {}): Promise<NavigationResult> {
+    return this.historyStep(-1, options);
   }
 
-  async goForward(options: GotoWaitOptions = {}): Promise<void> {
-    await this.historyStep(1, options);
+  async goForward(options: GotoWaitOptions = {}): Promise<NavigationResult> {
+    return this.historyStep(1, options);
   }
 
   async screenshot(options: ScreenshotOptions = {}): Promise<Buffer> {
@@ -364,6 +518,120 @@ export class Page {
     });
   }
 
+  async scrollBy(x: number, y: number, options: ScrollPageOptions = {}): Promise<void> {
+    await this.evaluate(
+      `window.scrollBy({ left: ${x}, top: ${y}, behavior: ${JSON.stringify(options.behavior ?? "auto")} })`,
+      { timeout: options.timeout },
+    );
+  }
+
+  async scrollTo(x: number, y: number, options: ScrollPageOptions = {}): Promise<void> {
+    await this.evaluate(
+      `window.scrollTo({ left: ${x}, top: ${y}, behavior: ${JSON.stringify(options.behavior ?? "auto")} })`,
+      { timeout: options.timeout },
+    );
+  }
+
+  async setContent(html: string, options: { timeout?: number } = {}): Promise<void> {
+    await this.init();
+    if (!this.mainFrameId) {
+      throw new ProtocolError("setContent requires a main frame", { method: "Page.setDocumentContent" });
+    }
+    await this.session.send("Page.setDocumentContent", { frameId: this.mainFrameId, html }, options.timeout);
+  }
+
+  async waitForLoadState(
+    state: "domcontentloaded" | "load" | "networkidle" = "load",
+    options: { timeout?: number } = {},
+  ): Promise<void> {
+    if (state === "networkidle") {
+      await this.network.waitForIdle({ timeout: options.timeout });
+      return;
+    }
+    await this.waitForFunction(
+      state === "load"
+        ? 'document.readyState === "complete"'
+        : 'document.readyState === "interactive" || document.readyState === "complete"',
+      { timeout: options.timeout },
+    );
+  }
+
+  async waitForTimeout(timeout: number): Promise<void> {
+    await delay(timeout);
+  }
+
+  async waitForDownload(options: { path?: string; timeout?: number } = {}): Promise<Download> {
+    await this.init();
+    return waitForDownload(this.session, options);
+  }
+
+  async bringToFront(options: { timeout?: number } = {}): Promise<void> {
+    await this.session.send("Page.bringToFront", {}, options.timeout);
+  }
+
+  async frames(options: { timeout?: number } = {}): Promise<Frame[]> {
+    await this.init();
+    const result = await this.session.send<{ frameTree?: unknown }>(
+      "Page.getFrameTree",
+      {},
+      options.timeout,
+    );
+    return flattenFrameTree(result.frameTree).map((info) => new Frame(this.session, info));
+  }
+
+  async mainFrame(options: { timeout?: number } = {}): Promise<Frame> {
+    const frames = await this.frames(options);
+    const frame = frames.find((candidate) => !candidate.info.parentId);
+    if (!frame) throw new ProtocolError("main frame not found", { method: "Page.getFrameTree" });
+    return frame;
+  }
+
+  async frame(
+    selector: { name?: string; url?: string | RegExp },
+    options: { timeout?: number } = {},
+  ): Promise<Frame | null> {
+    const frames = await this.frames(options);
+    return frames.find((candidate) => {
+      if (selector.name != null && candidate.name !== selector.name) return false;
+      if (selector.url != null) {
+        if (typeof selector.url === "string" && candidate.url !== selector.url) return false;
+        if (selector.url instanceof RegExp && !selector.url.test(candidate.url)) return false;
+      }
+      return true;
+    }) ?? null;
+  }
+
+  frameLocator(selector: string): PageFrameLocator {
+    return new PageFrameLocator(this, selector);
+  }
+
+  async waitForPopup(options: { timeout?: number; signal?: AbortSignal } = {}): Promise<Page> {
+    await this.init();
+    const openerId = this.session.targetId;
+    const event = await this.session.client.waitFor<{
+      targetInfo: { targetId: string; type: string; openerId?: string };
+    }>("Target.targetCreated", {
+      timeout: options.timeout,
+      signal: options.signal,
+      predicate: ({ targetInfo }) =>
+        targetInfo.type === "page" && (!openerId || targetInfo.openerId === openerId),
+    });
+    const session = await this.session.client.attachToTarget(event.targetInfo.targetId);
+    const popup = new Page(session);
+    await popup.init();
+    return popup;
+  }
+
+  async emulateMedia(options: EmulateMediaOptions = {}): Promise<void> {
+    const features = [];
+    if (options.colorScheme) features.push({ name: "prefers-color-scheme", value: options.colorScheme });
+    if (options.reducedMotion) features.push({ name: "prefers-reduced-motion", value: options.reducedMotion });
+    await this.session.send("Emulation.setEmulatedMedia", {
+      media: options.media ?? "",
+      features,
+    });
+  }
+
   /** Intercept network requests (Playwright-style `page.route`). */
   async route(pattern: RoutePattern, handler: RouteHandler): Promise<void> {
     await this.init();
@@ -375,7 +643,16 @@ export class Page {
   }
 
   async type(selector: string, text: string, options: TypeOptions = {}): Promise<void> {
-    return this.fill(selector, text, options);
+    await this.init();
+    const timeout = options.timeout;
+    if (options.clear) await this.fill(selector, "", { timeout });
+    await this.evaluate(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) throw new Error("type target not found: " + ${JSON.stringify(selector)});
+      if (typeof el.focus === "function") el.focus();
+      return true;
+    })()`, { timeout });
+    await this.keyboard.type(text, { timeout });
   }
 
   async press(key: string, options: PressOptions = {}): Promise<void> {
@@ -420,6 +697,10 @@ export class Page {
     return this.agent.detectForms(options);
   }
 
+  forms(options?: { timeout?: number }): Promise<DetectedForm[]> {
+    return this.agent.forms(options);
+  }
+
   findElement(options: FindElementOptions): Promise<InteractiveElement[]> {
     return this.agent.findElement(options);
   }
@@ -428,8 +709,10 @@ export class Page {
     return this.agent.getNodeDetails(backendNodeId, options);
   }
 
-  links(options?: { timeout?: number }): Promise<string[]> {
-    return this.agent.links(options);
+  links(options?: LinksOptions & { details?: false }): Promise<string[]>;
+  links(options: LinksOptions & { details: true }): Promise<LinkInfo[]>;
+  links(options?: LinksOptions): Promise<string[] | LinkInfo[]> {
+    return this.agent.links(options as LinksOptions & { details: true });
   }
 
   node(backendNodeId: number): NodeHandle {
@@ -467,25 +750,37 @@ export class Page {
   }
 
   async close(): Promise<void> {
-    this.routes.dispose();
-    this.network.dispose();
-    if (this.session.targetId) await this.session.client.closeTarget(this.session.targetId).catch(() => undefined);
-    await this.session.detach().catch(() => undefined);
-    for (const hook of this.closeHooks) hook();
-    this.closeHooks.clear();
+    if (this.closePromise) return this.closePromise;
+    this.closePromise = this.closeImpl();
+    return this.closePromise;
   }
 
   get frameId(): string | undefined {
     return this.mainFrameId;
   }
 
-  private async historyStep(delta: -1 | 1, options: GotoWaitOptions = {}): Promise<void> {
+  get generation(): number {
+    return this.documentGeneration;
+  }
+
+  private async historyStep(delta: -1 | 1, options: GotoWaitOptions = {}): Promise<NavigationResult> {
     await this.init();
     this.network.reset();
     const waitPromise = this.waiter.waitForNavigation(options);
     waitPromise.catch(() => undefined);
     await this.evaluate(delta === -1 ? "history.back()" : "history.forward()");
     await waitPromise;
+    return { response: null, url: this.currentPageUrl, frameId: this.mainFrameId };
+  }
+
+  private async closeImpl(): Promise<void> {
+    this.routes.dispose();
+    this.network.dispose();
+    if (this.session.targetId) await this.session.client.closeTarget(this.session.targetId).catch(() => undefined);
+    await this.session.detach().catch(() => undefined);
+    const hooks = [...this.closeHooks];
+    this.closeHooks.clear();
+    for (const hook of hooks) hook();
   }
 }
 

@@ -109,7 +109,7 @@ export class Response {
         return this._statusText;
     }
     ok() {
-        return this._status === 0 || (this._status >= 200 && this._status < 300);
+        return this._status >= 200 && this._status < 300;
     }
     headers() {
         return this._headers;

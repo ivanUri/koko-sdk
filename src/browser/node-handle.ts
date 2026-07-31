@@ -1,10 +1,12 @@
 import type { VeloraClient } from "./lp-client.js";
 import type { GotoWaitOptions } from "./waiter.js";
+import { StaleElementError } from "../cdp/errors.js";
 
 /** Minimal page surface to avoid import cycles. */
 export interface NodeHandlePage {
   init(): Promise<void>;
   readonly agent: VeloraClient;
+  readonly generation?: number;
   waitForNavigation(options?: GotoWaitOptions): Promise<void>;
 }
 export interface NodeActionOptions {
@@ -23,29 +25,35 @@ export class NodeHandle {
   constructor(
     readonly page: NodeHandlePage,
     readonly backendNodeId: number,
+    private readonly documentGeneration = page.generation,
   ) {}
 
   async click(options: NodeActionOptions = {}): Promise<void> {
+    this.assertCurrentDocument();
     await this.page.init();
     await this.page.agent.clickNode(this.backendNodeId, options);
   }
 
   async fill(text: string, options: NodeActionOptions = {}): Promise<void> {
+    this.assertCurrentDocument();
     await this.page.init();
     await this.page.agent.fillNode(this.backendNodeId, text, options);
   }
 
   async hover(options: NodeActionOptions = {}): Promise<void> {
+    this.assertCurrentDocument();
     await this.page.init();
     await this.page.agent.hoverNode(this.backendNodeId, options);
   }
 
   async scroll(options: { x?: number; y?: number; timeout?: number } = {}): Promise<void> {
+    this.assertCurrentDocument();
     await this.page.init();
     await this.page.agent.scrollNode(this.backendNodeId, options);
   }
 
   async selectOption(value: string, options: NodeActionOptions = {}): Promise<void> {
+    this.assertCurrentDocument();
     await this.page.init();
     await this.page.agent.selectOptionNode(this.backendNodeId, value, options);
   }
@@ -59,11 +67,13 @@ export class NodeHandle {
   }
 
   async setChecked(checked: boolean, options: NodeActionOptions = {}): Promise<void> {
+    this.assertCurrentDocument();
     await this.page.init();
     await this.page.agent.setCheckedNode(this.backendNodeId, checked, options);
   }
 
   async press(key: string, options: NodePressOptions = {}): Promise<void> {
+    this.assertCurrentDocument();
     await this.page.init();
     const nav = options.waitForNavigation
       ? this.page.waitForNavigation(typeof options.waitForNavigation === "object" ? options.waitForNavigation : {})
@@ -74,7 +84,21 @@ export class NodeHandle {
   }
 
   async details(options: NodeActionOptions = {}): Promise<import("./lp-types.js").NodeDetails> {
+    this.assertCurrentDocument();
     await this.page.init();
     return this.page.agent.getNodeDetails(this.backendNodeId, options);
+  }
+
+  private assertCurrentDocument(): void {
+    if (
+      this.documentGeneration != null
+      && this.page.generation != null
+      && this.documentGeneration !== this.page.generation
+    ) {
+      throw new StaleElementError(
+        `Backend node ${this.backendNodeId} belongs to an earlier document generation`,
+        { payload: { expected: this.documentGeneration, actual: this.page.generation } },
+      );
+    }
   }
 }

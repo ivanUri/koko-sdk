@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import { EventBus } from "../cdp/events.js";
-import { ProtocolError, WebSocketClosedError } from "../cdp/errors.js";
+import { AbortError, ProtocolError, TimeoutError, WebSocketClosedError } from "../cdp/errors.js";
 import { Logger } from "../utils/logger.js";
 export class WebSocketTransport {
     socket;
@@ -35,26 +35,55 @@ export class WebSocketTransport {
             payload.params = params;
         if (options.sessionId)
             payload.sessionId = options.sessionId;
-        this.logger?.log("send", payload);
-        this.socket.send(JSON.stringify(payload));
         return new Promise((resolve, reject) => {
             const timeout = options.timeout ?? this.defaultTimeout;
-            const timer = setTimeout(() => {
-                this.pending.delete(id);
-                reject(new ProtocolError(`CDP command timed out: ${method}`, {
+            const finish = (error) => {
+                const pending = this.takePending(id);
+                if (!pending)
+                    return;
+                if (error)
+                    pending.reject(error);
+            };
+            const timer = timeout > 0 && Number.isFinite(timeout)
+                ? setTimeout(() => {
+                    finish(new TimeoutError(`CDP command timed out: ${method}`, {
+                        method,
+                        sessionId: options.sessionId,
+                        timeout,
+                        payload,
+                    }));
+                }, timeout)
+                : undefined;
+            const abortHandler = options.signal
+                ? () => finish(new AbortError(`CDP command aborted: ${method}`, {
                     method,
                     sessionId: options.sessionId,
-                    timeout,
                     payload,
-                }));
-            }, timeout);
+                }))
+                : undefined;
             this.pending.set(id, {
                 method,
                 sessionId: options.sessionId,
                 payload,
                 timer,
+                signal: options.signal,
+                abortHandler,
                 resolve: resolve,
                 reject,
+            });
+            if (options.signal?.aborted) {
+                abortHandler?.();
+                return;
+            }
+            if (abortHandler)
+                options.signal?.addEventListener("abort", abortHandler, { once: true });
+            this.logger?.log("send", payload);
+            this.socket.send(JSON.stringify(payload), (error) => {
+                if (error)
+                    finish(new WebSocketClosedError(error.message, {
+                        method,
+                        sessionId: options.sessionId,
+                    }));
             });
         });
     }
@@ -101,11 +130,9 @@ export class WebSocketTransport {
         }
         this.logger?.log("recv", message);
         if (message.id !== undefined) {
-            const pending = this.pending.get(message.id);
+            const pending = this.takePending(message.id);
             if (!pending)
                 return;
-            this.pending.delete(message.id);
-            clearTimeout(pending.timer);
             if (message.error) {
                 pending.reject(new ProtocolError(message.error.message, {
                     method: pending.method,
@@ -125,11 +152,24 @@ export class WebSocketTransport {
         }
     }
     rejectAll(error) {
-        for (const [id, pending] of this.pending) {
-            clearTimeout(pending.timer);
+        for (const id of [...this.pending.keys()]) {
+            const pending = this.takePending(id);
+            if (!pending)
+                continue;
             pending.reject(error);
-            this.pending.delete(id);
         }
+    }
+    takePending(id) {
+        const pending = this.pending.get(id);
+        if (!pending)
+            return undefined;
+        this.pending.delete(id);
+        if (pending.timer)
+            clearTimeout(pending.timer);
+        if (pending.abortHandler) {
+            pending.signal?.removeEventListener("abort", pending.abortHandler);
+        }
+        return pending;
     }
 }
 async function resolveWebSocketEndpoint(endpoint) {

@@ -19,6 +19,72 @@ export class VeloraClient {
         this.page = page;
         this.session = session;
     }
+    tools() {
+        return [
+            {
+                name: "semanticTree",
+                description: "Return the current page semantic tree.",
+                inputSchema: { type: "object", properties: { format: { type: "string" } } },
+                execute: (input) => this.semanticTree((input ?? {})),
+            },
+            {
+                name: "markdown",
+                description: "Return token-efficient page markdown.",
+                inputSchema: { type: "object", properties: {} },
+                execute: () => this.markdown(),
+            },
+            {
+                name: "forms",
+                description: "Detect forms and fields on the current page.",
+                inputSchema: { type: "object", properties: {} },
+                execute: () => this.detectForms(),
+            },
+            {
+                name: "links",
+                description: "Extract unique absolute links from the current page.",
+                inputSchema: { type: "object", properties: {} },
+                execute: () => this.links(),
+            },
+        ];
+    }
+    async snapshot(options = {}) {
+        const include = new Set(options.include ?? [
+            "semanticTree",
+            "interactiveElements",
+            "forms",
+            "links",
+        ]);
+        const snapshot = {
+            generation: this.page.generation,
+            capturedAt: new Date().toISOString(),
+        };
+        await Promise.all([
+            include.has("semanticTree")
+                ? this.semanticTree({ ...options.semanticTree, timeout: options.timeout ?? options.semanticTree?.timeout })
+                    .then((value) => { snapshot.semanticTree = value; })
+                : undefined,
+            include.has("markdown")
+                ? this.markdown({ ...options.markdown, timeout: options.timeout ?? options.markdown?.timeout })
+                    .then((value) => { snapshot.markdown = value; })
+                : undefined,
+            include.has("interactiveElements")
+                ? this.getInteractiveElements({ timeout: options.timeout })
+                    .then((value) => { snapshot.interactiveElements = value; })
+                : undefined,
+            include.has("structuredData")
+                ? this.getStructuredData({ timeout: options.timeout })
+                    .then((value) => { snapshot.structuredData = value; })
+                : undefined,
+            include.has("forms")
+                ? this.detectForms({ timeout: options.timeout })
+                    .then((value) => { snapshot.forms = value; })
+                : undefined,
+            include.has("links")
+                ? this.links({ timeout: options.timeout }).then((value) => { snapshot.links = value; })
+                : undefined,
+        ]);
+        return snapshot;
+    }
     async markdown(options = {}) {
         const result = await this.session.send(method("getMarkdown"), options.nodeId != null ? { nodeId: options.nodeId } : {}, options.timeout);
         return result.markdown;
@@ -50,6 +116,10 @@ export class VeloraClient {
         const result = await this.session.send(method("detectForms"), {}, options.timeout);
         return result.forms ?? [];
     }
+    /** Canonical Velora extension name; detectForms remains backwards compatible. */
+    forms(options = {}) {
+        return this.detectForms(options);
+    }
     async getNodeDetails(backendNodeId, options = {}) {
         const result = await this.session.send(method("getNodeDetails"), { backendNodeId }, options.timeout);
         return result.nodeDetails;
@@ -69,17 +139,32 @@ export class VeloraClient {
     }
     async links(options = {}) {
         await this.page.init();
-        return this.page.evaluate(`(() => {
+        const links = await this.page.evaluate(`(() => {
       const out = [];
       const seen = new Set();
       for (const a of document.querySelectorAll('a[href]')) {
         const href = a.href;
         if (!href || seen.has(href)) continue;
         seen.add(href);
-        out.push(href);
+        out.push({
+          url: href,
+          text: (a.textContent || '').trim(),
+          title: a.getAttribute('title'),
+          rel: (a.getAttribute('rel') || '').split(/\\s+/).filter(Boolean),
+          target: a.getAttribute('target'),
+          internal: a.origin === location.origin,
+        });
       }
       return out;
     })()`, { timeout: options.timeout });
+        const filtered = links.filter((link) => {
+            if (options.internalOnly && !link.internal)
+                return false;
+            if (options.externalOnly && link.internal)
+                return false;
+            return true;
+        });
+        return options.details ? filtered : filtered.map((link) => link.url);
     }
     async waitForSelectorNode(selector, options = {}) {
         const result = await this.session.send(method("waitForSelector"), { selector, timeout: options.timeout ?? 5000 }, options.timeout);

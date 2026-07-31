@@ -61,6 +61,11 @@ export class Route {
     });
   }
 
+  /** Whether this paused request has reached a terminal Fetch action. */
+  get isHandled(): boolean {
+    return this.handled;
+  }
+
   private ensureOnce(): void {
     if (this.handled) throw new Error("Route already handled");
     this.handled = true;
@@ -72,9 +77,31 @@ export type RouteHandler = (route: Route) => void | Promise<void>;
 export type RoutePattern = string | RegExp | ((url: string) => boolean);
 
 export function matchesRoutePattern(url: string, pattern: RoutePattern): boolean {
-  if (typeof pattern === "string") return url.includes(pattern) || pattern === "*";
+  if (typeof pattern === "string") {
+    if (pattern === "*" || pattern === "**") return true;
+    if (!pattern.includes("*") && !pattern.includes("?")) return url.includes(pattern);
+    return globToRegExp(pattern).test(url);
+  }
   if (pattern instanceof RegExp) return pattern.test(url);
   return pattern(url);
+}
+
+function globToRegExp(pattern: string): RegExp {
+  let source = "";
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i];
+    if (char === "*" && pattern[i + 1] === "*") {
+      source += ".*";
+      i++;
+    } else if (char === "*") {
+      source += "[^/]*";
+    } else if (char === "?") {
+      source += "[^/]";
+    } else {
+      source += char.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
+    }
+  }
+  return new RegExp(`^${source}$`);
 }
 
 export class RouteRegistry {
@@ -92,6 +119,7 @@ export class RouteRegistry {
   async unroute(pattern?: RoutePattern, handler?: RouteHandler): Promise<void> {
     if (pattern == null && handler == null) {
       this.handlers.length = 0;
+      await this.disableFetch();
       return;
     }
     for (let i = this.handlers.length - 1; i >= 0; i--) {
@@ -101,10 +129,7 @@ export class RouteRegistry {
       this.handlers.splice(i, 1);
     }
     if (this.handlers.length === 0) {
-      this.unsubscribe?.();
-      this.unsubscribe = undefined;
-      await this.session.send("Fetch.disable").catch(() => undefined);
-      this.fetchEnabled = false;
+      await this.disableFetch();
     }
   }
 
@@ -120,10 +145,16 @@ export class RouteRegistry {
     this.unsubscribe = this.session.on<any>("Fetch.requestPaused", (event) => {
       void this.onRequestPaused(event);
     });
-    await this.session.send("Fetch.enable", {
-      patterns: [{ urlPattern: "*", requestStage: "Request" }],
-    });
-    this.fetchEnabled = true;
+    try {
+      await this.session.send("Fetch.enable", {
+        patterns: [{ urlPattern: "*", requestStage: "Request" }],
+      });
+      this.fetchEnabled = true;
+    } catch (error) {
+      this.unsubscribe();
+      this.unsubscribe = undefined;
+      throw error;
+    }
   }
 
   private async onRequestPaused(event: any): Promise<void> {
@@ -147,11 +178,23 @@ export class RouteRegistry {
       try {
         await handler(route);
       } catch {
-        await route.continue().catch(() => undefined);
+        if (!route.isHandled) await route.continue().catch(() => undefined);
       }
+      // A handler that returns without choosing a terminal action must not
+      // leave the browser request paused forever.
+      if (!route.isHandled) await route.continue().catch(() => undefined);
       return;
     }
 
     await this.session.send("Fetch.continueRequest", { requestId }).catch(() => undefined);
+  }
+
+  private async disableFetch(): Promise<void> {
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+    if (this.fetchEnabled) {
+      await this.session.send("Fetch.disable").catch(() => undefined);
+    }
+    this.fetchEnabled = false;
   }
 }

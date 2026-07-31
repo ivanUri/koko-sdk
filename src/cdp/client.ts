@@ -6,6 +6,7 @@ import { CDPSession } from "./session.js";
 
 export interface WaitForEventOptions<T> {
   timeout?: number;
+  signal?: AbortSignal;
   predicate?: (payload: T) => boolean;
 }
 
@@ -55,8 +56,14 @@ export class CDPClient {
     }
   }
 
-  send<T = unknown>(method: string, params?: unknown, sessionId?: string, timeout?: number): Promise<T> {
-    return this.transport.send<T>(method, params, { sessionId, timeout });
+  send<T = unknown>(
+    method: string,
+    params?: unknown,
+    sessionId?: string,
+    timeout?: number,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    return this.transport.send<T>(method, params, { sessionId, timeout, signal });
   }
 
   on<T = unknown>(event: string, handler: EventHandler<T>): () => void {
@@ -79,14 +86,20 @@ export class CDPClient {
   }
 
   waitFor<T = unknown>(event: string, options: WaitForEventOptions<T> = {}): Promise<T> {
+    let off: () => void = () => undefined;
     const promise = new Promise<T>((resolve) => {
-      const off = this.on<T>(event, (payload) => {
+      off = this.on<T>(event, (payload) => {
         if (options.predicate && !options.predicate(payload)) return;
         off();
         resolve(payload);
       });
     });
-    return withTimeout(promise, { timeout: options.timeout, label: `Waiting for ${event}` });
+    return withTimeout(promise, {
+      timeout: options.timeout,
+      signal: options.signal,
+      label: `Waiting for ${event}`,
+    })
+      .finally(() => off());
   }
 
   onSession<T = unknown>(sessionId: string, event: string, handler: EventHandler<T>): () => void {
@@ -98,14 +111,21 @@ export class CDPClient {
   }
 
   waitForSession<T = unknown>(sessionId: string, event: string, options: WaitForEventOptions<T> = {}): Promise<T> {
+    let off: () => void = () => undefined;
     const promise = new Promise<T>((resolve) => {
-      const off = this.onSession<T>(sessionId, event, (payload) => {
+      off = this.onSession<T>(sessionId, event, (payload) => {
         if (options.predicate && !options.predicate(payload)) return;
         off();
         resolve(payload);
       });
     });
-    return withTimeout(promise, { timeout: options.timeout, label: `Waiting for ${event}`, sessionId });
+    return withTimeout(promise, {
+      timeout: options.timeout,
+      signal: options.signal,
+      label: `Waiting for ${event}`,
+      sessionId,
+    })
+      .finally(() => off());
   }
 
   async createTarget(url = "about:blank"): Promise<string> {

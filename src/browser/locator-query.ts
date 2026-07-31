@@ -8,7 +8,9 @@ export type LocatorQuery =
   | { kind: "placeholder"; text: string | RegExp; exact?: boolean }
   | { kind: "alt"; text: string | RegExp; exact?: boolean }
   | { kind: "title"; text: string | RegExp; exact?: boolean }
-  | { kind: "testId"; testId: string | RegExp };
+  | { kind: "testId"; testId: string | RegExp }
+  | { kind: "filter"; hasText?: string | RegExp; has?: LocatorQuery[] }
+  | { kind: "union"; branches: LocatorQuery[][] };
 
 export interface LocatorResolveOptions {
   /** 0-based index when multiple elements match (default: 0 = first). */
@@ -47,6 +49,16 @@ function serializeQueries(queries: LocatorQuery[]): unknown[] {
     }
     if (q.kind === "testId") {
       return { ...q, testId: serializePattern(q.testId) };
+    }
+    if (q.kind === "filter") {
+      return {
+        ...q,
+        hasText: q.hasText != null ? serializePattern(q.hasText) : undefined,
+        has: q.has ? serializeQueries(q.has) : undefined,
+      };
+    }
+    if (q.kind === "union") {
+      return { ...q, branches: q.branches.map(serializeQueries) };
     }
     return q;
   });
@@ -136,6 +148,26 @@ function queryAll(query) {
     return [...document.querySelectorAll('[data-testid]')].filter((el) =>
       textMatch(el.getAttribute('data-testid'), query.testId, true));
   }
+  if (query.kind === 'filter') {
+    return [...document.querySelectorAll('body *')].filter((el) => {
+      if (query.hasText != null && !textMatch(el.textContent, query.hasText, false)) return false;
+      if (query.has && !query.has.every((child) => queryAll(child).some((node) => el.contains(node)))) return false;
+      return true;
+    });
+  }
+  if (query.kind === 'union') {
+    const out = new Set();
+    for (const branch of query.branches) {
+      if (!branch.length) continue;
+      let nodes = queryAll(branch[0]);
+      for (let i = 1; i < branch.length; i++) {
+        const subset = new Set(queryAll(branch[i]));
+        nodes = nodes.filter((node) => subset.has(node));
+      }
+      for (const node of nodes) out.add(node);
+    }
+    return [...out];
+  }
   return [];
 }
 function resolveNodes() {
@@ -181,5 +213,15 @@ export function buildCountExpression(queries: LocatorQuery[]): string {
     const cfg = ${cfg};
     ${RESOLVER_HELPERS}
     return resolveNodes().length;
+  })()`;
+}
+
+/** Build a self-contained IIFE returning every visible matched element. */
+export function buildAllExpression(queries: LocatorQuery[]): string {
+  const cfg = buildCfgLiteral(queries);
+  return `(() => {
+    const cfg = ${cfg};
+    ${RESOLVER_HELPERS}
+    return resolveNodes();
   })()`;
 }
