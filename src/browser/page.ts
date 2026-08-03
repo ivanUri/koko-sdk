@@ -557,11 +557,17 @@ export class Page {
   }
 
   async waitForLoadState(
-    state: "domcontentloaded" | "load" | "networkidle" = "load",
+    state: "domcontentloaded" | "load" | "networkidle" | "domstable" = "load",
     options: { timeout?: number } = {},
   ): Promise<void> {
     if (state === "networkidle") {
       await this.network.waitForIdle({ timeout: options.timeout });
+      return;
+    }
+    if (state === "domstable") {
+      const timeout = options.timeout ?? 30_000;
+      await this.waitForFunction('document.readyState === "complete"', { timeout });
+      await this.waiter.waitForDomStable(500, timeout);
       return;
     }
     await this.waitForFunction(

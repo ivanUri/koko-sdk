@@ -15,7 +15,7 @@ function parseArgs(argv: string[]) {
   let launch = false;
   let output: string | undefined;
   let endpoint = process.env.VELORA_CDP;
-  let waitUntil: "none" | "commit" | "domcontentloaded" | "load" | "networkidle" | "done" = "domcontentloaded";
+  let waitUntil: "none" | "commit" | "domcontentloaded" | "load" | "networkidle" | "domstable" | "done" = "domcontentloaded";
   let timeout = 30_000;
   let logger = false;
   let profile: string | undefined;

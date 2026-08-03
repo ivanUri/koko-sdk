@@ -5,6 +5,7 @@ import { CDPClient } from "../src/cdp/client.js";
 import { Page } from "../src/browser/page.js";
 import { terminateChildProcess, waitForCdp } from "../src/browser/launch.js";
 import type { CDPSession } from "../src/cdp/session.js";
+import { PageWaiter } from "../src/browser/waiter.js";
 
 describe("event wait lifecycle", () => {
   it("unsubscribes a client event listener when waitFor times out", async () => {
@@ -31,6 +32,26 @@ describe("event wait lifecycle", () => {
     ).rejects.toThrow("Waiting for Page.loadEventFired");
 
     expect(off).toHaveBeenCalledOnce();
+  });
+
+  it("waits for DOM quiet after load without waiting for network idle", async () => {
+    const session = {
+      waitFor: vi.fn().mockResolvedValue({}),
+      send: vi.fn().mockResolvedValue({ result: { value: true } }),
+    } as unknown as CDPSession;
+    const network = { waitForIdle: vi.fn() };
+    const waiter = new PageWaiter(session, network as never);
+
+    await waiter.waitForNavigation({ waitUntil: "domstable", timeout: 1000, domStableMs: 250 });
+
+    expect(session.waitFor).toHaveBeenCalledWith("Page.loadEventFired", expect.objectContaining({ timeout: 1000 }));
+    expect(network.waitForIdle).not.toHaveBeenCalled();
+    expect(session.send).toHaveBeenCalledWith(
+      "Runtime.evaluate",
+      expect.objectContaining({ expression: expect.stringContaining("MutationObserver") }),
+      1250,
+      undefined,
+    );
   });
 });
 

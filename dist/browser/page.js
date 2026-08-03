@@ -396,6 +396,12 @@ export class Page {
             await this.network.waitForIdle({ timeout: options.timeout });
             return;
         }
+        if (state === "domstable") {
+            const timeout = options.timeout ?? 30_000;
+            await this.waitForFunction('document.readyState === "complete"', { timeout });
+            await this.waiter.waitForDomStable(500, timeout);
+            return;
+        }
         await this.waitForFunction(state === "load"
             ? 'document.readyState === "complete"'
             : 'document.readyState === "interactive" || document.readyState === "complete"', { timeout: options.timeout });

@@ -164,7 +164,7 @@ export declare class Page {
     setContent(html: string, options?: {
         timeout?: number;
     }): Promise<void>;
-    waitForLoadState(state?: "domcontentloaded" | "load" | "networkidle", options?: {
+    waitForLoadState(state?: "domcontentloaded" | "load" | "networkidle" | "domstable", options?: {
         timeout?: number;
     }): Promise<void>;
     waitForTimeout(timeout: number): Promise<void>;

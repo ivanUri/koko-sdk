@@ -10,7 +10,7 @@ export type DumpFormat = "html" | "markdown" | "semantic_tree" | "semantic_tree_
 /** `--strip-mode` tag groups. */
 export type StripMode = "js" | "ui" | "css" | "full";
 /** `--wait-until` events. */
-export type DumpWaitUntil = "load" | "domcontentloaded" | "networkidle" | "done";
+export type DumpWaitUntil = "load" | "domcontentloaded" | "networkidle" | "domstable" | "done";
 export interface DumpOptions extends EngineCommonOptions {
     /** Output format (default: html). */
     format?: DumpFormat;

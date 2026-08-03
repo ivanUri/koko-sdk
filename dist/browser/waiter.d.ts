@@ -1,11 +1,13 @@
 import type { CDPSession } from "../cdp/session.js";
 import type { NetworkTracker } from "./network.js";
-export type WaitUntil = "none" | "commit" | "domcontentloaded" | "load" | "networkidle" | "done";
+export type WaitUntil = "none" | "commit" | "domcontentloaded" | "load" | "networkidle" | "domstable" | "done";
 export interface GotoWaitOptions {
     waitUntil?: WaitUntil;
     timeout?: number;
     signal?: AbortSignal;
     networkIdleMs?: number;
+    /** Required quiet interval for DOM mutations when waitUntil is domstable. */
+    domStableMs?: number;
 }
 export interface InternalWaitOptions extends GotoWaitOptions {
     /** loaderId returned by Page.navigate; used to disambiguate concurrent navigations. */
@@ -18,6 +20,7 @@ export declare class PageWaiter {
     private readonly network;
     constructor(session: CDPSession, network: NetworkTracker);
     waitForNavigation(options?: InternalWaitOptions): Promise<void>;
+    waitForDomStable(stableMs?: number, timeout?: number, signal?: AbortSignal): Promise<void>;
     waitForSelector(selector: string, options?: {
         timeout?: number;
         visible?: boolean;

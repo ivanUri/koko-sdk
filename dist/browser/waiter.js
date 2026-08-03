@@ -20,12 +20,50 @@ export class PageWaiter {
             await this.session.waitFor("Page.loadEventFired", { timeout, signal: options.signal });
             return;
         }
-        // networkidle / done: wait for load (best-effort) then network idle.
+        // Stable snapshots start after load so parser/resource pauses do not look
+        // like a completed visual state. DOM stability intentionally ignores
+        // background network activity.
         await this.session.waitFor("Page.loadEventFired", { timeout, signal: options.signal }).catch(() => undefined);
+        if (waitUntil === "domstable") {
+            await this.waitForDomStable(options.domStableMs ?? 500, timeout, options.signal);
+            return;
+        }
+        // networkidle / done: wait for network quiet after load.
         await this.network.waitForIdle({ idleMs: options.networkIdleMs, timeout, signal: options.signal });
         if (waitUntil === "done") {
             await this.pollExpression("document.readyState === 'complete'", timeout, "Waiting for document complete");
             await delay(32);
+        }
+    }
+    async waitForDomStable(stableMs = 500, timeout = 30_000, signal) {
+        const expression = `(() => new Promise((resolve) => {
+      const stableMs = ${JSON.stringify(stableMs)};
+      const timeoutMs = ${JSON.stringify(timeout)};
+      let quietTimer;
+      let deadlineTimer;
+      let observer;
+      const finish = (stable) => {
+        clearTimeout(quietTimer);
+        clearTimeout(deadlineTimer);
+        observer?.disconnect();
+        resolve(stable);
+      };
+      const arm = () => {
+        clearTimeout(quietTimer);
+        quietTimer = setTimeout(() => finish(true), stableMs);
+      };
+      observer = new MutationObserver(arm);
+      observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+      deadlineTimer = setTimeout(() => finish(false), timeoutMs);
+      arm();
+    }))()`;
+        const result = await this.session.send("Runtime.evaluate", {
+            expression,
+            returnByValue: true,
+            awaitPromise: true,
+        }, timeout + 250, signal);
+        if (!result.result?.value) {
+            throw new TimeoutError("Waiting for DOM stability", { timeout });
         }
     }
     async waitForSelector(selector, options = {}) {
