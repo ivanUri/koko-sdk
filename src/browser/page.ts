@@ -274,7 +274,23 @@ export class Page {
     const waitPromise = this.waiter.waitForNavigation(options);
     waitPromise.catch(() => undefined);
     try {
-      const result = await this.session.send<any>("Page.navigate", { url }, options.timeout, options.signal);
+      let result: any;
+      try {
+        result = await this.session.send<any>("Page.navigate", { url }, options.timeout, options.signal);
+      } catch (error) {
+        if (error instanceof ProtocolError) {
+          throw new NavigationError(error.message, {
+            method: "Page.navigate",
+            sessionId: this.session.sessionId,
+            payload: error.payload,
+            cause: error,
+            retryable: error.retryable,
+            url,
+            details: { reason: error.message },
+          });
+        }
+        throw error;
+      }
       if (result.errorText) {
         throw new NavigationError(result.errorText, {
           method: "Page.navigate",
