@@ -4,10 +4,10 @@
 
 ### Added
 
-- Capability-based `BrowserDriver`, `VeloraDriver` and experimental
+- Capability-based `BrowserDriver`, `KokoDriver` and experimental
   `ChromeCdpDriver`.
 - Package entry points for `/driver`, `/agent`, `/cdp` and `/profile`.
-- `page.velora` extension namespace and semantic snapshots.
+- `page.koko` extension namespace and semantic snapshots.
 - Document-generation validation for backend-node handles.
 - Abort-aware timeout and WebSocket command handling.
 - Public page console, error and network event subscriptions.

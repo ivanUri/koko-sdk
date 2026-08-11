@@ -39,7 +39,7 @@ export declare class NetworkTracker {
     private notify;
     /** Enable CDP Network domain and start tracking requests (idempotent). */
     enable(): Promise<void>;
-    /** Lazily enable Network — avoids velora SIGTRAP on simple multi-page goto. */
+    /** Lazily enable Network — avoids koko SIGTRAP on simple multi-page goto. */
     ensureEnabled(): Promise<void>;
     private doEnable;
     dispose(): void;

@@ -1,18 +1,18 @@
 import { ProtocolError } from "../cdp/errors.js";
 /**
- * CDP domain served by the engine (`src/protocols/cdp/domains/velora.zig`).
+ * CDP domain served by the engine (`src/protocols/cdp/domains/koko.zig`).
  * Anything else returns UnknownDomain.
  */
-const DOMAIN = "Velora";
+const DOMAIN = "Koko";
 const method = (name) => `${DOMAIN}.${name}`;
 /**
- * Velora-namespaced semantic and locator API.
+ * Koko-namespaced semantic and locator API.
  *
  * Selector actions (`clickSelector`, `fillSelector`, `selectOptionSelector`)
  * keep selector polling, SPA frame changes and actionability inside the engine,
  * so callers do not reproduce visibility/retry policy with Runtime.evaluate.
  */
-export class VeloraClient {
+export class KokoClient {
     page;
     session;
     constructor(page, session) {
@@ -116,7 +116,7 @@ export class VeloraClient {
         const result = await this.session.send(method("detectForms"), {}, options.timeout);
         return result.forms ?? [];
     }
-    /** Canonical Velora extension name; detectForms remains backwards compatible. */
+    /** Canonical Koko extension name; detectForms remains backwards compatible. */
     forms(options = {}) {
         return this.detectForms(options);
     }
@@ -173,7 +173,7 @@ export class VeloraClient {
     /**
      * Pre-arm the next window.alert/confirm/prompt response.
      *
-     * Velora dialogs do not suspend V8, so this must be called *before* the
+     * Koko dialogs do not suspend V8, so this must be called *before* the
      * script that opens the dialog — a reactive Page.handleJavaScriptDialog
      * would arrive after JS already returned.
      */
@@ -221,8 +221,8 @@ export class VeloraClient {
         await this.session.send(method("setCheckedNode"), { backendNodeId, checked }, options.timeout);
     }
 }
-/** @deprecated Renamed to `VeloraClient`; the engine domain is `Velora`, not `LP`. */
-export { VeloraClient as LPClient };
+/** @deprecated Renamed to `KokoClient`; the engine domain is `Koko`, not `LP`. */
+export { KokoClient as LPClient };
 function equalsIgnoreCase(a, b) {
     return a.toLowerCase() === b.toLowerCase();
 }

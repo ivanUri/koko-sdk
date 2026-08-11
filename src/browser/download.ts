@@ -39,7 +39,7 @@ export async function waitForDownload(
   },
   options: { path?: string; timeout?: number } = {},
 ): Promise<Download> {
-  const directory = options.path ?? join(process.cwd(), ".velora-downloads");
+  const directory = options.path ?? join(process.cwd(), ".koko-downloads");
   await mkdir(directory, { recursive: true });
   await session.send("Browser.setDownloadBehavior", {
     behavior: "allow",

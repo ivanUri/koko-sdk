@@ -1,7 +1,7 @@
 import { ProtocolError } from "./cdp/errors.js";
 import { Workflow } from "./workflow.js";
 /**
- * Runtime agent facade over deterministic Velora browser primitives.
+ * Runtime agent facade over deterministic Koko browser primitives.
  * It performs no LLM reasoning and validates actions before dispatch.
  */
 export class AgentSession {
@@ -19,7 +19,7 @@ export class AgentSession {
             forms: "forms",
             links: "links",
         };
-        return this.page.velora.snapshot({
+        return this.page.koko.snapshot({
             include: options.include?.map((name) => includeMap[name]),
             semanticTree: options.maxDepth != null ? { maxDepth: options.maxDepth } : undefined,
             timeout: options.timeout,
@@ -27,7 +27,7 @@ export class AgentSession {
     }
     tools() {
         return [
-            ...this.page.velora.tools(),
+            ...this.page.koko.tools(),
             {
                 name: "snapshot",
                 description: "Capture a generation-bound semantic page snapshot.",

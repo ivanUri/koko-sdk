@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 
-const workDir = await mkdtemp(join(tmpdir(), "velora-sdk-package-"));
+const workDir = await mkdtemp(join(tmpdir(), "koko-sdk-package-"));
 
 try {
   await run("npm", ["pack", "--pack-destination", workDir], process.cwd());
@@ -16,7 +16,7 @@ try {
   await run("node", [
     "--input-type=module",
     "-e",
-    "await import('velora-sdk'); await import('velora-sdk/driver'); await import('velora-sdk/agent'); await import('velora-sdk/workflow');",
+    "await import('koko-sdk'); await import('koko-sdk/driver'); await import('koko-sdk/agent'); await import('koko-sdk/workflow');",
   ], workDir);
 } finally {
   await rm(workDir, { recursive: true, force: true });

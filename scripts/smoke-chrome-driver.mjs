@@ -7,7 +7,7 @@ const port = Number(process.env.CHROME_CDP_PORT || 9333);
 const fixture = createServer((_request, response) => {
   response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
   response.end(`<!doctype html>
-    <title>Velora Chrome Driver Smoke</title>
+    <title>Koko Chrome Driver Smoke</title>
     <main>
       <h1>Chrome driver connected</h1>
       <input id="email" />
@@ -29,7 +29,7 @@ const fixturePort = typeof fixtureAddress === "object" && fixtureAddress
   : 0;
 const chrome = await spawnChrome({
   port,
-  profileDir: `/tmp/velora-sdk-chrome-smoke-${port}`,
+  profileDir: `/tmp/koko-sdk-chrome-smoke-${port}`,
   url: `http://127.0.0.1:${fixturePort}`,
 });
 console.log(`[chrome-smoke] connected endpoint ${chrome.endpoint}`);

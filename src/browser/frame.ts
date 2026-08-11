@@ -27,7 +27,7 @@ export class Frame {
   async evaluate<T = unknown>(expressionOrFunction: string | Function, options: { timeout?: number } = {}): Promise<T> {
     const world = await this.session.send<{ executionContextId: number }>(
       "Page.createIsolatedWorld",
-      { frameId: this.id, worldName: "velora-sdk", grantUniveralAccess: false },
+      { frameId: this.id, worldName: "koko-sdk", grantUniveralAccess: false },
       options.timeout,
     );
     const expression = typeof expressionOrFunction === "function"

@@ -4,7 +4,7 @@ import { PageWaiter } from "./waiter.js";
 import { NetworkTracker } from "./network.js";
 import { RouteRegistry } from "./route.js";
 import { Locator } from "./locator.js";
-import { VeloraClient } from "./lp-client.js";
+import { KokoClient } from "./lp-client.js";
 import { NodeHandle } from "./node-handle.js";
 import { searchGoogle } from "./google-search.js";
 import { Keyboard, Mouse } from "./input.js";
@@ -70,10 +70,10 @@ export class Page {
     waiter;
     keyboard;
     mouse;
-    /** Velora LP domain — AI extraction and backend-node agent actions. */
+    /** Koko LP domain — AI extraction and backend-node agent actions. */
     agent;
-    /** Stable Velora extension namespace; `agent` remains as a compatibility alias. */
-    velora;
+    /** Stable Koko extension namespace; `agent` remains as a compatibility alias. */
+    koko;
     routes;
     initialized = false;
     closePromise;
@@ -88,8 +88,8 @@ export class Page {
         this.waiter = new PageWaiter(session, this.network);
         this.keyboard = new Keyboard(session);
         this.mouse = new Mouse(session);
-        this.agent = new VeloraClient(this, session);
-        this.velora = this.agent;
+        this.agent = new KokoClient(this, session);
+        this.koko = this.agent;
     }
     /** Register cleanup when page.close() runs (used by Browser/Context). */
     onClose(hook) {
@@ -509,7 +509,7 @@ export class Page {
             nativeVirtualKeyCode: spec.vk,
         }, timeout);
     }
-    // --- Velora-specific (LP domain + agent workflows) ---
+    // --- Koko-specific (LP domain + agent workflows) ---
     markdown(options) {
         return this.agent.markdown(options);
     }

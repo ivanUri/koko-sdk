@@ -29,12 +29,12 @@ export interface RemoteSessionBlob {
 }
 export interface ProfileApiOptions {
     /** Control plane base URL, e.g. `http://127.0.0.1:3940`. */
-    veloraApi: string;
+    kokoApi: string;
     apiKey?: string;
 }
 export interface HydrateRemoteProfileOptions extends ProfileApiOptions {
     profileId: string;
-    /** Temp root (default: os.tmpdir()/velora-remote/<profileId>). */
+    /** Temp root (default: os.tmpdir()/koko-remote/<profileId>). */
     workDir?: string;
 }
 export interface HydratedRemoteProfile {
@@ -54,7 +54,7 @@ export declare function fetchRemoteProfile(options: ProfileApiOptions & {
 }): Promise<RemoteProfileRecord>;
 /**
  * Download fingerprint + optional session from mock/production API into a temp work dir.
- * Returns paths suitable for `velora serve --fingerprint-folder` and `--user-data-dir`.
+ * Returns paths suitable for `koko serve --fingerprint-folder` and `--user-data-dir`.
  */
 export declare function hydrateRemoteProfile(options: HydrateRemoteProfileOptions): Promise<HydratedRemoteProfile>;
 /** Upload session state back to control plane (cookies from profile dir). */

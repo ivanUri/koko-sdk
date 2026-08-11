@@ -58,7 +58,7 @@ describe("BrowserContext options", () => {
       viewport: { width: 400, height: 800 },
       isMobile: true,
       hasTouch: true,
-      userAgent: "VeloraBot/1.0",
+      userAgent: "KokoBot/1.0",
       acceptLanguage: "en-US",
       locale: "en-US",
       timezoneId: "Asia/Ho_Chi_Minh",
@@ -87,7 +87,7 @@ describe("BrowserContext options", () => {
     expect(deviceMetrics).toEqual({ width: 400, height: 800, deviceScaleFactor: 1, mobile: true });
 
     const ua = sent.find((s) => s.method === "Network.setUserAgentOverride")!.params;
-    expect(ua).toEqual({ userAgent: "VeloraBot/1.0", acceptLanguage: "en-US", platform: undefined });
+    expect(ua).toEqual({ userAgent: "KokoBot/1.0", acceptLanguage: "en-US", platform: undefined });
   });
 
   it("does not call Network.setUserAgentOverride when userAgent is unset (acceptLanguage/platform alone are not sendable)", async () => {

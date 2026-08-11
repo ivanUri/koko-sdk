@@ -1,12 +1,12 @@
 import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { resolveFingerprintFolder } from "./profile.js";
-import { resolveVeloraInstall } from "./velora-install.js";
+import { resolveKokoInstall } from "./koko-install.js";
 import { toEngineArgs, type EngineCommonOptions } from "./browser/engine-options.js";
 import { ProtocolError } from "./cdp/errors.js";
 
 /**
- * `--dump` formats accepted by `velora fetch`.
+ * `--dump` formats accepted by `koko fetch`.
  *
  * Only `html` and `markdown` actually render on the CLI path. The engine
  * accepts the `semantic_tree` variants but emits nothing for them — reach
@@ -54,16 +54,16 @@ export interface DumpOptions extends EngineCommonOptions {
    */
   terminateMs?: number;
 
-  /** Portable `.velora-profile` bundle directory. */
+  /** Portable `.koko-profile` bundle directory. */
   profileBundle?: string;
   /** Installed fingerprint id under `browser/fingerprints/`. */
   fingerprint?: string;
 
-  /** Path to velora binary. */
+  /** Path to koko binary. */
   binary?: string;
   /** Engine install preset or path. */
   install?: string;
-  /** Engine install root (VELORA_ROOT / VELORA_DATA). */
+  /** Engine install root (KOKO_ROOT / KOKO_DATA). */
   dataRoot?: string;
 
   /** Write the dump to this path. */
@@ -87,7 +87,7 @@ export interface DumpResult {
 }
 
 /**
- * One-shot document dump via `velora fetch`.
+ * One-shot document dump via `koko fetch`.
  *
  * Covers the parts of the engine that the CDP path does not expose: markdown
  * and semantic-tree rendering, `--strip-mode`, iframe inlining, script/selector
@@ -103,7 +103,7 @@ export async function dump(url: string, options: DumpOptions = {}): Promise<Dump
     throw new ProtocolError(`url must be http:// or https://, got ${parsed.protocol}`);
   }
 
-  const install = resolveVeloraInstall(options);
+  const install = resolveKokoInstall(options);
   const { binary, dataRoot } = install;
 
   const fingerprintFolder = resolveFingerprintFolder({
@@ -157,7 +157,7 @@ export async function dump(url: string, options: DumpOptions = {}): Promise<Dump
       const proc = spawn(binary, args, {
         cwd: dataRoot,
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, VELORA_ROOT: dataRoot, VELORA_DATA: dataRoot },
+        env: { ...process.env, KOKO_ROOT: dataRoot, KOKO_DATA: dataRoot },
       });
 
       const timer = setTimeout(() => proc.kill("SIGKILL"), timeout);
@@ -167,7 +167,7 @@ export async function dump(url: string, options: DumpOptions = {}): Promise<Dump
       proc.stderr?.on("data", (d: Buffer) => err.push(d));
       proc.on("error", (e) => {
         clearTimeout(timer);
-        reject(new ProtocolError(`failed to spawn velora: ${e.message}`));
+        reject(new ProtocolError(`failed to spawn koko: ${e.message}`));
       });
       proc.on("close", (code, signal) => {
         clearTimeout(timer);
@@ -183,17 +183,17 @@ export async function dump(url: string, options: DumpOptions = {}): Promise<Dump
 
   if (!result.body) {
     // The engine advertises the semantic_tree formats in `fetch --help` but its
-    // CLI path emits nothing for them (verified against velora 1.0.2); only the
+    // CLI path emits nothing for them (verified against koko 1.0.2); only the
     // CDP path renders them. Say so instead of reporting an empty dump.
     if (format === "semantic_tree" || format === "semantic_tree_text") {
       throw new ProtocolError(
-        `velora fetch --dump ${format} produced no output: the engine only renders `
+        `koko fetch --dump ${format} produced no output: the engine only renders `
           + "semantic trees over CDP. Use page.agent.semanticTree({ format: \"text\" }) "
-          + "via launchVelora(), or dump 'html' / 'markdown' here.",
+          + "via launchKoko(), or dump 'html' / 'markdown' here.",
       );
     }
     throw new ProtocolError(
-      `velora fetch produced no output (exit ${result.exitCode}${result.signal ? `, ${result.signal}` : ""})`
+      `koko fetch produced no output (exit ${result.exitCode}${result.signal ? `, ${result.signal}` : ""})`
         + `\n${result.log.slice(-2000)}`,
     );
   }

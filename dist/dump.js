@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { resolveFingerprintFolder } from "./profile.js";
-import { resolveVeloraInstall } from "./velora-install.js";
+import { resolveKokoInstall } from "./koko-install.js";
 import { toEngineArgs } from "./browser/engine-options.js";
 import { ProtocolError } from "./cdp/errors.js";
 /**
- * One-shot document dump via `velora fetch`.
+ * One-shot document dump via `koko fetch`.
  *
  * Covers the parts of the engine that the CDP path does not expose: markdown
  * and semantic-tree rendering, `--strip-mode`, iframe inlining, script/selector
@@ -20,7 +20,7 @@ export async function dump(url, options = {}) {
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
         throw new ProtocolError(`url must be http:// or https://, got ${parsed.protocol}`);
     }
-    const install = resolveVeloraInstall(options);
+    const install = resolveKokoInstall(options);
     const { binary, dataRoot } = install;
     const fingerprintFolder = resolveFingerprintFolder({
         dataRoot,
@@ -76,7 +76,7 @@ export async function dump(url, options = {}) {
         const proc = spawn(binary, args, {
             cwd: dataRoot,
             stdio: ["ignore", "pipe", "pipe"],
-            env: { ...process.env, VELORA_ROOT: dataRoot, VELORA_DATA: dataRoot },
+            env: { ...process.env, KOKO_ROOT: dataRoot, KOKO_DATA: dataRoot },
         });
         const timer = setTimeout(() => proc.kill("SIGKILL"), timeout);
         timer.unref?.();
@@ -84,7 +84,7 @@ export async function dump(url, options = {}) {
         proc.stderr?.on("data", (d) => err.push(d));
         proc.on("error", (e) => {
             clearTimeout(timer);
-            reject(new ProtocolError(`failed to spawn velora: ${e.message}`));
+            reject(new ProtocolError(`failed to spawn koko: ${e.message}`));
         });
         proc.on("close", (code, signal) => {
             clearTimeout(timer);
@@ -98,14 +98,14 @@ export async function dump(url, options = {}) {
     });
     if (!result.body) {
         // The engine advertises the semantic_tree formats in `fetch --help` but its
-        // CLI path emits nothing for them (verified against velora 1.0.2); only the
+        // CLI path emits nothing for them (verified against koko 1.0.2); only the
         // CDP path renders them. Say so instead of reporting an empty dump.
         if (format === "semantic_tree" || format === "semantic_tree_text") {
-            throw new ProtocolError(`velora fetch --dump ${format} produced no output: the engine only renders `
+            throw new ProtocolError(`koko fetch --dump ${format} produced no output: the engine only renders `
                 + "semantic trees over CDP. Use page.agent.semanticTree({ format: \"text\" }) "
-                + "via launchVelora(), or dump 'html' / 'markdown' here.");
+                + "via launchKoko(), or dump 'html' / 'markdown' here.");
         }
-        throw new ProtocolError(`velora fetch produced no output (exit ${result.exitCode}${result.signal ? `, ${result.signal}` : ""})`
+        throw new ProtocolError(`koko fetch produced no output (exit ${result.exitCode}${result.signal ? `, ${result.signal}` : ""})`
             + `\n${result.log.slice(-2000)}`);
     }
     if (options.output)

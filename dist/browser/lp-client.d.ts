@@ -3,13 +3,13 @@ import type { DetectedForm, DialogOptions, FindElementOptions, InteractiveElemen
 import type { Page } from "./page.js";
 import type { AgentTool } from "../agent.js";
 /**
- * Velora-namespaced semantic and locator API.
+ * Koko-namespaced semantic and locator API.
  *
  * Selector actions (`clickSelector`, `fillSelector`, `selectOptionSelector`)
  * keep selector polling, SPA frame changes and actionability inside the engine,
  * so callers do not reproduce visibility/retry policy with Runtime.evaluate.
  */
-export declare class VeloraClient {
+export declare class KokoClient {
     private readonly page;
     private readonly session;
     constructor(page: Page, session: CDPSession);
@@ -27,7 +27,7 @@ export declare class VeloraClient {
     detectForms(options?: {
         timeout?: number;
     }): Promise<DetectedForm[]>;
-    /** Canonical Velora extension name; detectForms remains backwards compatible. */
+    /** Canonical Koko extension name; detectForms remains backwards compatible. */
     forms(options?: {
         timeout?: number;
     }): Promise<DetectedForm[]>;
@@ -47,7 +47,7 @@ export declare class VeloraClient {
     /**
      * Pre-arm the next window.alert/confirm/prompt response.
      *
-     * Velora dialogs do not suspend V8, so this must be called *before* the
+     * Koko dialogs do not suspend V8, so this must be called *before* the
      * script that opens the dialog — a reactive Page.handleJavaScriptDialog
      * would arrive after JS already returned.
      */
@@ -76,5 +76,5 @@ export declare class VeloraClient {
         timeout?: number;
     }): Promise<void>;
 }
-/** @deprecated Renamed to `VeloraClient`; the engine domain is `Velora`, not `LP`. */
-export { VeloraClient as LPClient };
+/** @deprecated Renamed to `KokoClient`; the engine domain is `Koko`, not `LP`. */
+export { KokoClient as LPClient };

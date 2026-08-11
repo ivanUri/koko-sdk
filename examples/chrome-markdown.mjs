@@ -9,7 +9,7 @@ const output = resolve(process.argv[3] ?? "exports/chrome-page.md");
 const port = Number(process.env.CHROME_CDP_PORT || 9334);
 const chrome = await spawnChrome({
   port,
-  profileDir: `/tmp/velora-sdk-chrome-markdown-${port}`,
+  profileDir: `/tmp/koko-sdk-chrome-markdown-${port}`,
   url: "about:blank",
 });
 const browser = await Browser.connect(chrome.endpoint);

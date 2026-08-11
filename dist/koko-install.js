@@ -5,7 +5,7 @@ import { ProtocolError } from "./cdp/errors.js";
 function shellQuote(value) {
     return `'${value.replace(/'/g, `'\\''`)}'`;
 }
-function tryBrewPrefix(formula = "velora") {
+function tryBrewPrefix(formula = "koko") {
     try {
         const out = execSync(`brew --prefix ${shellQuote(formula)} 2>/dev/null`, {
             encoding: "utf8",
@@ -32,22 +32,22 @@ function tryWhich(command) {
 /**
  * An install root is usable when it ships the fingerprint store the engine
  * resolves identities from (`FingerprintStore.installedFolder`). The built-in
- * `velora` identity is the marker; a store with other fingerprints still counts.
+ * `koko` identity is the marker; a store with other fingerprints still counts.
  */
 function hasEngineBundle(dataRoot) {
     const store = join(dataRoot, "browser", "fingerprints");
-    if (existsSync(join(store, "velora", "fingerprint.json")))
+    if (existsSync(join(store, "koko", "fingerprint.json")))
         return true;
     if (!existsSync(store))
         return false;
     return readdirSync(store, { withFileTypes: true }).some((entry) => entry.isDirectory() && existsSync(join(store, entry.name, "fingerprint.json")));
 }
 function brewInstall() {
-    const prefix = tryBrewPrefix("velora");
+    const prefix = tryBrewPrefix("koko");
     if (!prefix)
         return undefined;
-    const binary = join(prefix, "bin/velora");
-    const dataRoot = join(prefix, "share/velora");
+    const binary = join(prefix, "bin/koko");
+    const dataRoot = join(prefix, "share/koko");
     if (!existsSync(binary) || !hasEngineBundle(dataRoot)) {
         return undefined;
     }
@@ -60,7 +60,7 @@ function brewInstall() {
     };
 }
 function pathInstall() {
-    const onPath = tryWhich("velora");
+    const onPath = tryWhich("koko");
     if (!onPath)
         return undefined;
     const dataRoot = inferDataRootFromBinary(onPath);
@@ -75,7 +75,7 @@ function pathInstall() {
     };
 }
 function zigDevInstall(dataRoot) {
-    const binary = join(dataRoot, "zig-out/bin/velora");
+    const binary = join(dataRoot, "zig-out/bin/koko");
     if (!existsSync(binary) || !hasEngineBundle(dataRoot)) {
         return undefined;
     }
@@ -88,12 +88,12 @@ function zigDevInstall(dataRoot) {
     };
 }
 function inferDataRootFromBinary(binary) {
-    if (binary.includes("/zig-out/bin/velora")) {
+    if (binary.includes("/zig-out/bin/koko")) {
         const root = resolve(dirname(binary), "../..");
         if (hasEngineBundle(root))
             return root;
     }
-    for (const rel of ["../share/velora", "../../share/velora"]) {
+    for (const rel of ["../share/koko", "../../share/koko"]) {
         const candidate = resolve(dirname(binary), rel);
         if (hasEngineBundle(candidate))
             return candidate;
@@ -105,7 +105,7 @@ function installFromRepoRoot(dataRoot, id, label, source = "preset") {
     const zig = zigDevInstall(resolved);
     if (zig)
         return { ...zig, id, label, source };
-    const binOnly = join(resolved, "bin/velora");
+    const binOnly = join(resolved, "bin/koko");
     if (existsSync(binOnly) && hasEngineBundle(resolved)) {
         return {
             id,
@@ -121,9 +121,9 @@ function installFromExplicitPath(path, id, label) {
     const resolved = resolve(path);
     if (!existsSync(resolved))
         return undefined;
-    // Must test for a *file*: a source checkout is itself named `velora`, so a
+    // Must test for a *file*: a source checkout is itself named `koko`, so a
     // name-only check misreads the repo root as the binary.
-    if (basename(resolved) === "velora" && statSync(resolved).isFile()) {
+    if (basename(resolved) === "koko" && statSync(resolved).isFile()) {
         const dataRoot = inferDataRootFromBinary(resolved);
         if (!dataRoot)
             return undefined;
@@ -139,7 +139,7 @@ function installFromExplicitPath(path, id, label) {
 }
 function envPresetInstall(name) {
     const key = name.toUpperCase().replace(/[^A-Z0-9]/g, "_");
-    const envPath = process.env[`VELORA_INSTALL_${key}`];
+    const envPath = process.env[`KOKO_INSTALL_${key}`];
     if (!envPath)
         return undefined;
     return installFromExplicitPath(envPath, name, `${name} (${envPath})`);
@@ -151,7 +151,7 @@ const BUILTIN_PRESETS = {
 function resolvePreset(preset) {
     const install = BUILTIN_PRESETS[preset]();
     if (!install) {
-        throw new ProtocolError(`Velora install preset "${preset}" not found on this machine`);
+        throw new ProtocolError(`Koko install preset "${preset}" not found on this machine`);
     }
     return install;
 }
@@ -165,34 +165,34 @@ function resolveInstallKey(key) {
     const fromPath = installFromExplicitPath(key, key, key);
     if (fromPath)
         return fromPath;
-    const envHint = `VELORA_INSTALL_${key.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
-    throw new ProtocolError(`Unknown Velora install "${key}". Use a preset (homebrew, path), an absolute path, or set ${envHint}.`);
+    const envHint = `KOKO_INSTALL_${key.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+    throw new ProtocolError(`Unknown Koko install "${key}". Use a preset (homebrew, path), an absolute path, or set ${envHint}.`);
 }
 function applyDataRootOverride(install, explicitDataRoot) {
     if (!explicitDataRoot)
         return install;
     const dataRoot = resolve(explicitDataRoot);
     if (!hasEngineBundle(dataRoot)) {
-        throw new ProtocolError(`Velora data not found: ${dataRoot}`);
+        throw new ProtocolError(`Koko data not found: ${dataRoot}`);
     }
     return { ...install, dataRoot };
 }
 function autoResolve(explicitDataRoot) {
-    if (process.env.VELORA_BIN) {
-        const dataRoot = explicitDataRoot ?? inferDataRootFromBinary(process.env.VELORA_BIN);
+    if (process.env.KOKO_BIN) {
+        const dataRoot = explicitDataRoot ?? inferDataRootFromBinary(process.env.KOKO_BIN);
         if (!dataRoot)
-            throw new ProtocolError("Velora data not found for VELORA_BIN");
+            throw new ProtocolError("Koko data not found for KOKO_BIN");
         return {
-            id: "velora_bin",
-            label: `VELORA_BIN (${process.env.VELORA_BIN})`,
-            binary: process.env.VELORA_BIN,
+            id: "koko_bin",
+            label: `KOKO_BIN (${process.env.KOKO_BIN})`,
+            binary: process.env.KOKO_BIN,
             dataRoot,
-            source: "velora_bin",
+            source: "koko_bin",
         };
     }
     // A dataRoot pointing at a source checkout is self-describing: prefer its own
     // zig-out build over an unrelated system install, so a dev tree needs no
-    // Homebrew velora on PATH.
+    // Homebrew koko on PATH.
     if (explicitDataRoot) {
         const dev = zigDevInstall(resolve(explicitDataRoot));
         if (dev)
@@ -204,14 +204,14 @@ function autoResolve(explicitDataRoot) {
     const onPath = pathInstall();
     if (onPath)
         return applyDataRootOverride(onPath, explicitDataRoot);
-    throw new ProtocolError("Velora not found. Install: brew tap ivanUri/tap && brew install velora "
+    throw new ProtocolError("Koko not found. Install: brew tap ivanUri/tap && brew install koko "
         + "— or set binary / install / dataRoot to an absolute path "
-        + "(a source checkout needs zig-out/bin/velora built).");
+        + "(a source checkout needs zig-out/bin/koko built).");
 }
 /**
  * List engine installs detected on this machine (for picking `install` in tests).
  */
-export function listVeloraInstalls() {
+export function listKokoInstalls() {
     const seen = new Set();
     const out = [];
     const push = (install) => {
@@ -225,30 +225,30 @@ export function listVeloraInstalls() {
     };
     push(brewInstall());
     push(pathInstall());
-    if (process.env.VELORA_BIN) {
-        push(installFromExplicitPath(process.env.VELORA_BIN, "velora_bin", `VELORA_BIN (${process.env.VELORA_BIN})`));
+    if (process.env.KOKO_BIN) {
+        push(installFromExplicitPath(process.env.KOKO_BIN, "koko_bin", `KOKO_BIN (${process.env.KOKO_BIN})`));
     }
     for (const [key, value] of Object.entries(process.env)) {
-        if (!key.startsWith("VELORA_INSTALL_") || !value)
+        if (!key.startsWith("KOKO_INSTALL_") || !value)
             continue;
-        const name = key.slice("VELORA_INSTALL_".length).toLowerCase().replace(/_/g, "-");
+        const name = key.slice("KOKO_INSTALL_".length).toLowerCase().replace(/_/g, "-");
         push(envPresetInstall(name));
     }
     return out;
 }
 /**
- * Resolve velora binary + engine data root (`share/velora` or git checkout).
- * Priority: `binary` → `install` / `$VELORA_INSTALL` → `$VELORA_BIN` → auto discovery.
+ * Resolve koko binary + engine data root (`share/koko` or git checkout).
+ * Priority: `binary` → `install` / `$KOKO_INSTALL` → `$KOKO_BIN` → auto discovery.
  */
-export function resolveVeloraInstall(options = {}) {
+export function resolveKokoInstall(options = {}) {
     const explicitDataRoot = options.dataRoot ?? options.repoRoot
-        ?? process.env.VELORA_DATA
-        ?? process.env.VELORA_ROOT
+        ?? process.env.KOKO_DATA
+        ?? process.env.KOKO_ROOT
         ?? undefined;
     if (options.binary) {
         const dataRoot = explicitDataRoot ?? inferDataRootFromBinary(options.binary);
         if (!dataRoot)
-            throw new ProtocolError(`Velora data not found for ${options.binary}`);
+            throw new ProtocolError(`Koko data not found for ${options.binary}`);
         return {
             id: "explicit",
             label: `explicit (${options.binary})`,
@@ -257,14 +257,14 @@ export function resolveVeloraInstall(options = {}) {
             source: "explicit",
         };
     }
-    const installKey = options.install ?? process.env.VELORA_INSTALL;
+    const installKey = options.install ?? process.env.KOKO_INSTALL;
     if (installKey && installKey !== "auto") {
         return applyDataRootOverride(resolveInstallKey(installKey), explicitDataRoot);
     }
     return autoResolve(explicitDataRoot);
 }
-/** Default engine data root (Homebrew `share/velora` when installed). */
-export function defaultVeloraDataRoot() {
-    return resolveVeloraInstall().dataRoot;
+/** Default engine data root (Homebrew `share/koko` when installed). */
+export function defaultKokoDataRoot() {
+    return resolveKokoInstall().dataRoot;
 }
-//# sourceMappingURL=velora-install.js.map
+//# sourceMappingURL=koko-install.js.map

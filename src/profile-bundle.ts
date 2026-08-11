@@ -2,20 +2,20 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { ProtocolError } from "./cdp/errors.js";
 import { defaultUserDataDir } from "./profile-paths.js";
-import { resolveVeloraInstall } from "./velora-install.js";
+import { resolveKokoInstall } from "./koko-install.js";
 
 export interface ProfileBundleCommonOptions {
-  /** Engine install root (VELORA_ROOT). */
+  /** Engine install root (KOKO_ROOT). */
   dataRoot?: string;
   /** Chrome-style session root. */
   userDataDir?: string;
-  /** Path to velora binary. */
+  /** Path to koko binary. */
   binary?: string;
 }
 
 export interface ExportProfileOptions extends ProfileBundleCommonOptions {
   name: string;
-  /** Output bundle directory (default: `<userDataDir>/<name>.velora-profile`). */
+  /** Output bundle directory (default: `<userDataDir>/<name>.koko-profile`). */
   out?: string;
 }
 
@@ -29,7 +29,7 @@ export interface CreateProfileOptions extends ProfileBundleCommonOptions {
   name: string;
   /**
    * Installed fingerprint id under `browser/fingerprints/`.
-   * Defaults to `velora` for a profile named `Default`, otherwise the profile name.
+   * Defaults to `koko` for a profile named `Default`, otherwise the profile name.
    */
   fingerprint?: string;
 }
@@ -60,7 +60,7 @@ export interface ProfileListEntry {
 }
 
 function resolveInstall(options: ProfileBundleCommonOptions) {
-  return resolveVeloraInstall({
+  return resolveKokoInstall({
     binary: options.binary,
     dataRoot: options.dataRoot,
   });
@@ -97,7 +97,7 @@ async function runProcess(
   });
 }
 
-async function runVeloraProfile(
+async function runKokoProfile(
   subArgs: string[],
   options: ProfileBundleCommonOptions,
 ): Promise<ProfileBundleResult> {
@@ -110,7 +110,7 @@ async function runVeloraProfile(
 /**
  * List profiles in user-data-dir.
  *
- * `velora profile list` renders fixed-width columns via `std.debug.print`, so
+ * `koko profile list` renders fixed-width columns via `std.debug.print`, so
  * the table arrives on **stderr**, and a name wider than its column shifts the
  * later fields. Rows are therefore anchored on the profile path (always
  * `<user-data-dir>/<name>`) rather than split on whitespace.
@@ -118,7 +118,7 @@ async function runVeloraProfile(
 export async function listProfiles(
   options: ProfileBundleCommonOptions = {},
 ): Promise<ProfileListEntry[]> {
-  const result = await runVeloraProfile(["list"], options);
+  const result = await runKokoProfile(["list"], options);
   const text = `${result.stderr}\n${result.stdout}`;
   const lines = text.split("\n");
 
@@ -156,13 +156,13 @@ export async function createProfile(
 ): Promise<ProfileBundleResult> {
   const args = ["create", "--name", options.name];
   if (options.fingerprint) args.push("--fingerprint", options.fingerprint);
-  return runVeloraProfile(args, options);
+  return runKokoProfile(args, options);
 }
 
 export async function deleteProfile(
   options: DeleteProfileOptions,
 ): Promise<ProfileBundleResult> {
-  return runVeloraProfile(["delete", "--name", options.name], options);
+  return runKokoProfile(["delete", "--name", options.name], options);
 }
 
 /** Seed a profile's Cookies.json from an exported cookie file. */
@@ -172,11 +172,11 @@ export async function importCookies(
   const args = ["import-cookies"];
   if (options.name) args.push("--name", options.name);
   args.push("--from", resolve(options.from));
-  return runVeloraProfile(args, options);
+  return runKokoProfile(args, options);
 }
 
 /**
- * Export a profile to a portable `.velora-profile` bundle
+ * Export a profile to a portable `.koko-profile` bundle
  * (`fingerprint/`, `Preferences.json`, `session/`).
  */
 export async function exportProfile(
@@ -184,14 +184,14 @@ export async function exportProfile(
 ): Promise<ProfileBundleResult> {
   const args = ["export", "--name", options.name];
   if (options.out) args.push("--to", resolve(options.out));
-  return runVeloraProfile(args, options);
+  return runKokoProfile(args, options);
 }
 
 /** Import a bundle into user-data-dir as a named profile. */
 export async function importProfile(
   options: ImportProfileOptions,
 ): Promise<ProfileBundleResult> {
-  return runVeloraProfile([
+  return runKokoProfile([
     "import",
     "--name",
     options.name,

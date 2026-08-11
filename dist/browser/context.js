@@ -1,5 +1,5 @@
 /**
- * NOTE on isolation: Velora currently supports a single CDP browser context per `velora serve`
+ * NOTE on isolation: Koko currently supports a single CDP browser context per `koko serve`
  * connection (`Target.createBrowserContext` errors if called twice). `userAgent`/`locale`/`timezoneId`/
  * `geolocation`/`permissions`/`extraHTTPHeaders` are applied per-page but the underlying engine state
  * is connection-wide — multiple `browser.newContext()` calls on the SAME `Browser` are NOT isolated

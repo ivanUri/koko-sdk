@@ -2,7 +2,7 @@ import { CDPClient } from "../cdp/client.js";
 import type { WebSocketTransportOptions } from "../transport/websocket.js";
 import { BrowserContext, type BrowserContextOptions } from "./context.js";
 import { Page } from "./page.js";
-import { launchVelora, type LaunchedVelora, type VeloraLaunchOptions } from "./launch.js";
+import { launchKoko, type LaunchedKoko, type KokoLaunchOptions } from "./launch.js";
 import {
   definePersona,
   personaContextOptions,
@@ -32,12 +32,12 @@ export class Browser {
   }
 
   /**
-   * Spawn `velora serve` and connect over CDP.
-   * Default: Homebrew `velora` (`brew install velora`) + `share/velora/browser/velora.json`.
-   * Antidetect: pass `profileId` + `veloraApi`. Override with `binary` / `dataRoot`.
+   * Spawn `koko serve` and connect over CDP.
+   * Default: Homebrew `koko` (`brew install koko`) + `share/koko/browser/koko.json`.
+   * Antidetect: pass `profileId` + `kokoApi`. Override with `binary` / `dataRoot`.
    */
-  static async launch(options: VeloraLaunchOptions = {}): Promise<LaunchedVelora> {
-    return launchVelora(options);
+  static async launch(options: KokoLaunchOptions = {}): Promise<LaunchedKoko> {
+    return launchKoko(options);
   }
 
   async newSession(url = "about:blank") {

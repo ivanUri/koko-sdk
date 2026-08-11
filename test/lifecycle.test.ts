@@ -121,7 +121,7 @@ describe("launch lifecycle", () => {
     const pending = waitForCdp("http://127.0.0.1:9222", proc, 5_000);
     proc.emit("error", new Error("ENOENT"));
 
-    await expect(pending).rejects.toThrow("failed to spawn velora: ENOENT");
+    await expect(pending).rejects.toThrow("failed to spawn koko: ENOENT");
     expect(proc.listenerCount("error")).toBe(0);
     vi.unstubAllGlobals();
   });

@@ -1,5 +1,5 @@
 /**
- * Engine CLI options shared by `velora serve`, `velora fetch` and `velora mcp`.
+ * Engine CLI options shared by `koko serve`, `koko fetch` and `koko mcp`.
  *
  * Field names mirror the flags in `src/runtime/Config.zig`; `toEngineArgs`
  * is the single place that renders them, so `serve` and `fetch` cannot drift.
@@ -54,7 +54,7 @@ export interface EngineCommonOptions {
      * Mutually exclusive with `userAgentSuffix`.
      */
     userAgent?: string;
-    /** Suffix appended to the default Velora User-Agent (`--user-agent-suffix`). */
+    /** Suffix appended to the default Koko User-Agent (`--user-agent-suffix`). */
     userAgentSuffix?: string;
     /** Ed25519 private key PEM for Web Bot Auth (`--web-bot-auth-key-file`). */
     webBotAuthKeyFile?: string;

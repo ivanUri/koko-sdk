@@ -7,7 +7,7 @@ import { NetworkTracker } from "./network.js";
 import { RouteRegistry, type RouteHandler, type RoutePattern } from "./route.js";
 import { Locator, type GetByRoleOptions, type GetByTextOptions, type LocatorOptions } from "./locator.js";
 import type { ActionOptions, FillOptions, SelectOptions } from "./actions.js";
-import { VeloraClient } from "./lp-client.js";
+import { KokoClient } from "./lp-client.js";
 import { NodeHandle } from "./node-handle.js";
 import { searchGoogle } from "./google-search.js";
 import { Keyboard, Mouse } from "./input.js";
@@ -188,10 +188,10 @@ export class Page {
   readonly waiter: PageWaiter;
   readonly keyboard: Keyboard;
   readonly mouse: Mouse;
-  /** Velora LP domain — AI extraction and backend-node agent actions. */
-  readonly agent: VeloraClient;
-  /** Stable Velora extension namespace; `agent` remains as a compatibility alias. */
-  readonly velora: VeloraClient;
+  /** Koko LP domain — AI extraction and backend-node agent actions. */
+  readonly agent: KokoClient;
+  /** Stable Koko extension namespace; `agent` remains as a compatibility alias. */
+  readonly koko: KokoClient;
   private readonly routes: RouteRegistry;
   private initialized = false;
   private closePromise?: Promise<void>;
@@ -206,8 +206,8 @@ export class Page {
     this.waiter = new PageWaiter(session, this.network);
     this.keyboard = new Keyboard(session);
     this.mouse = new Mouse(session);
-    this.agent = new VeloraClient(this, session);
-    this.velora = this.agent;
+    this.agent = new KokoClient(this, session);
+    this.koko = this.agent;
   }
 
   /** Register cleanup when page.close() runs (used by Browser/Context). */
@@ -697,7 +697,7 @@ export class Page {
     }, timeout);
   }
 
-  // --- Velora-specific (LP domain + agent workflows) ---
+  // --- Koko-specific (LP domain + agent workflows) ---
 
   markdown(options?: MarkdownOptions): Promise<string> {
     return this.agent.markdown(options);

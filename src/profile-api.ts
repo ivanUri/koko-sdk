@@ -37,13 +37,13 @@ export interface RemoteSessionBlob {
 
 export interface ProfileApiOptions {
   /** Control plane base URL, e.g. `http://127.0.0.1:3940`. */
-  veloraApi: string;
+  kokoApi: string;
   apiKey?: string;
 }
 
 export interface HydrateRemoteProfileOptions extends ProfileApiOptions {
   profileId: string;
-  /** Temp root (default: os.tmpdir()/velora-remote/<profileId>). */
+  /** Temp root (default: os.tmpdir()/koko-remote/<profileId>). */
   workDir?: string;
 }
 
@@ -82,7 +82,7 @@ async function apiFetch(
 export async function fetchRemoteProfile(
   options: ProfileApiOptions & { profileId: string },
 ): Promise<RemoteProfileRecord> {
-  const base = normalizeApiBase(options.veloraApi);
+  const base = normalizeApiBase(options.kokoApi);
   const res = await apiFetch(`${base}/v1/profiles/${encodeURIComponent(options.profileId)}`, {
     apiKey: options.apiKey,
   });
@@ -148,13 +148,13 @@ async function downloadSession(
 
 /**
  * Download fingerprint + optional session from mock/production API into a temp work dir.
- * Returns paths suitable for `velora serve --fingerprint-folder` and `--user-data-dir`.
+ * Returns paths suitable for `koko serve --fingerprint-folder` and `--user-data-dir`.
  */
 export async function hydrateRemoteProfile(
   options: HydrateRemoteProfileOptions,
 ): Promise<HydratedRemoteProfile> {
   const record = await fetchRemoteProfile(options);
-  const workDir = options.workDir ?? join(tmpdir(), "velora-remote", options.profileId);
+  const workDir = options.workDir ?? join(tmpdir(), "koko-remote", options.profileId);
 
   if (existsSync(workDir)) rmSync(workDir, { recursive: true, force: true });
   mkdirSync(workDir, { recursive: true });
@@ -196,7 +196,7 @@ export async function flushRemoteSession(
   },
 ): Promise<void> {
   const record = options.record ?? await fetchRemoteProfile({
-    veloraApi: options.veloraApi,
+    kokoApi: options.kokoApi,
     apiKey: options.apiKey,
     profileId: options.profileId,
   });

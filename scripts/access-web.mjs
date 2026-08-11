@@ -17,8 +17,8 @@ let launched;
 
 try {
   launched = await Browser.launch({
-    install: process.env.VELORA_INSTALL,
-    profile: process.env.VELORA_PROFILE,
+    install: process.env.KOKO_INSTALL,
+    profile: process.env.KOKO_PROFILE,
     logLevel: "error",
   });
 

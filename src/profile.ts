@@ -10,7 +10,7 @@ import { defaultUserDataDir } from "./profile-paths.js";
 export interface PreferencesV3 {
   version: 3;
   name: string;
-  /** Fingerprint folder id, e.g. `velora`, `chrome-macos-sonoma`. */
+  /** Fingerprint folder id, e.g. `koko`, `chrome-macos-sonoma`. */
   fingerprint: string;
   created?: string;
 }
@@ -25,7 +25,7 @@ export const FINGERPRINT_FILE = "fingerprint.json";
  * Mirrors `ProfileManager.defaultFingerprintForName`.
  */
 export function defaultFingerprintForName(profileName: string): string {
-  return profileName === "Default" ? "velora" : profileName;
+  return profileName === "Default" ? "koko" : profileName;
 }
 
 /** Installed fingerprint folder: `<dataRoot>/browser/fingerprints/<id>/`. */
@@ -61,14 +61,14 @@ export function profileFingerprintDir(userDataDir: string, profileName: string):
   return join(profileDir(userDataDir, profileName), FINGERPRINT_DIR);
 }
 
-/** Portable `.velora-profile` bundle directory. */
+/** Portable `.koko-profile` bundle directory. */
 export function bundleDir(name: string, userDataDir = defaultUserDataDir()): string {
-  return join(userDataDir, `${name}.velora-profile`);
+  return join(userDataDir, `${name}.koko-profile`);
 }
 
 /**
  * Fingerprint folder inside an exported bundle.
- * `velora profile export` writes `<bundle>/fingerprint/fingerprint.json`;
+ * `koko profile export` writes `<bundle>/fingerprint/fingerprint.json`;
  * flat bundles (fingerprint.json at the root) are accepted too.
  */
 export function bundleFingerprintDir(bundlePath: string): string {
@@ -95,14 +95,14 @@ export interface ResolveFingerprintOptions {
   userDataDir?: string;
   /** Explicit fingerprint folder (`--fingerprint-folder`). */
   fingerprintFolder?: string;
-  /** Portable `.velora-profile` bundle directory. */
+  /** Portable `.koko-profile` bundle directory. */
   profileBundle?: string;
   /** Installed fingerprint id under `browser/fingerprints/`. */
   fingerprint?: string;
 }
 
 /**
- * Resolve the folder to pass to `velora --fingerprint-folder`.
+ * Resolve the folder to pass to `koko --fingerprint-folder`.
  *
  * Order: explicit folder → bundle → profile-embedded → installed fingerprint
  * (explicit id, else the id recorded in the profile's Preferences.json).

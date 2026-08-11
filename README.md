@@ -1,43 +1,43 @@
-# Velora SDK (`velora-sdk`)
+# Koko SDK (`koko-sdk`)
 
-TypeScript CDP client for the [Velora](https://github.com/ivanUri/velora) engine. Standalone repo — sibling of the engine checkout:
+TypeScript CDP client for the [Koko](https://github.com/ivanUri/koko) engine. Standalone repo — sibling of the engine checkout:
 
 ```
 Desktop/
-  velora/       # Zig engine (zig build)
-  velora-sdk/   # this repo (npm: velora-sdk)
+  koko/       # Zig engine (zig build)
+  koko-sdk/   # this repo (npm: koko-sdk)
 ```
 
-`Browser.launch()` with no options uses **Homebrew** when installed (`brew tap ivanUri/tap && brew install velora`).
+`Browser.launch()` with no options uses **Homebrew** when installed (`brew tap ivanUri/tap && brew install koko`).
 
-Engine data: `$(brew --prefix velora)/share/velora`, whose fingerprint store lives at
+Engine data: `$(brew --prefix koko)/share/koko`, whose fingerprint store lives at
 `browser/fingerprints/<id>/fingerprint.json`. A source checkout works as a `dataRoot` too,
-as long as `zig-out/bin/velora` is built.
+as long as `zig-out/bin/koko` is built.
 
 ### Pick a local build (testing)
 
 ```ts
-import { Browser, listVeloraInstalls } from "velora-sdk";
+import { Browser, listKokoInstalls } from "koko-sdk";
 
 // List binaries found on this machine
-for (const i of listVeloraInstalls()) {
+for (const i of listKokoInstalls()) {
   console.log(i.id, i.binary);
 }
 
-// Presets: homebrew | path ($PATH velora)
+// Presets: homebrew | path ($PATH koko)
 const launched = await Browser.launch({ install: "homebrew" });
 
 // Dev build: absolute path to binary or repo root
-await Browser.launch({ install: "/Users/you/Desktop/velora/zig-out/bin/velora" });
+await Browser.launch({ install: "/Users/you/Desktop/koko/zig-out/bin/koko" });
 
-// Named custom build via env (e.g. VELORA_INSTALL_DEV=/path/to/bin/velora)
+// Named custom build via env (e.g. KOKO_INSTALL_DEV=/path/to/bin/koko)
 await Browser.launch({ install: "dev" });
 
 // Default for all scripts in a shell session
-// export VELORA_INSTALL=homebrew
+// export KOKO_INSTALL=homebrew
 ```
 
-Also: `VELORA_BIN`, `VELORA_ROOT` / `dataRoot`, or `binary` for full control.
+Also: `KOKO_BIN`, `KOKO_ROOT` / `dataRoot`, or `binary` for full control.
 
 TypeScript-first; talks directly to Chrome DevTools Protocol over WebSocket. No Playwright or Puppeteer internals.
 
@@ -47,20 +47,20 @@ Portable automation remains on `Browser`, `BrowserContext`, `Page` and
 `Locator`. Backend selection and optional features are explicit:
 
 ```ts
-import { VeloraDriver } from "velora-sdk/driver";
+import { KokoDriver } from "koko-sdk/driver";
 
-const driver = new VeloraDriver();
+const driver = new KokoDriver();
 console.log(driver.capabilities());
 const browser = await driver.connect("http://127.0.0.1:9222");
 ```
 
 `ChromeCdpDriver` is an experimental connect-only adapter for an existing
-Chromium CDP endpoint. It does not advertise Velora semantic capabilities.
+Chromium CDP endpoint. It does not advertise Koko semantic capabilities.
 
-Velora-native functionality is namespaced under `page.velora`:
+Koko-native functionality is namespaced under `page.koko`:
 
 ```ts
-const snapshot = await page.velora.snapshot({
+const snapshot = await page.koko.snapshot({
   include: ["semanticTree", "forms", "links"],
 });
 ```
@@ -70,7 +70,7 @@ const snapshot = await page.velora.snapshot({
 For a runtime agent facade with validated actions and tool schemas:
 
 ```ts
-import { createAgentSession } from "velora-sdk/agent";
+import { createAgentSession } from "koko-sdk/agent";
 
 const agent = createAgentSession(page);
 const snapshot = await agent.snapshot({
@@ -87,7 +87,7 @@ const tools = agent.tools(); // semanticTree, markdown, forms, links, snapshot, 
 The public API is modeled after [Playwright](https://playwright.dev/docs/api/class-playwright) so automation scripts port with minimal changes.
 
 ```ts
-import { Browser } from "velora-sdk";
+import { Browser } from "koko-sdk";
 
 const browser = await Browser.connect("http://127.0.0.1:9222");
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
@@ -98,12 +98,12 @@ console.log(await page.title(), await page.url());
 
 // Locators (Playwright-style)
 await page.getByRole("link", { name: "More information" }).click();
-await page.getByLabel("Search").fill("velora browser");
+await page.getByLabel("Search").fill("koko browser");
 await page.getByRole("button", { name: "Search" }).click();
 
 // Selector shortcuts
 await page.click("button.submit");
-await page.fill('textarea[name="q"]', "velora browser");
+await page.fill('textarea[name="q"]', "koko browser");
 await page.press("Enter");
 
 // Low-level input is available for canvas/custom controls that have no locator.
@@ -122,13 +122,13 @@ const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
   isMobile: true,
   hasTouch: true,
-  userAgent: "VeloraBot/1.0 (+https://example.com/bot)", // see note below if you need a Chrome-style UA
+  userAgent: "KokoBot/1.0 (+https://example.com/bot)", // see note below if you need a Chrome-style UA
   acceptLanguage: "en-US,en;q=0.9",
   locale: "en-US",
   timezoneId: "Asia/Ho_Chi_Minh",
   geolocation: { latitude: 10.762622, longitude: 106.660172 },
   permissions: ["geolocation"],
-  extraHTTPHeaders: { "X-Client": "velora-sdk" },
+  extraHTTPHeaders: { "X-Client": "koko-sdk" },
 });
 ```
 
@@ -137,7 +137,7 @@ const context = await browser.newContext({
 > spoofing a full browser UA string. For real antidetect identity spoofing, use `fingerprint`/`profile`
 > on `Browser.launch()` instead of a manual `userAgent` override.
 >
-> **Isolation caveat**: Velora currently supports a single CDP browser context per `velora serve`
+> **Isolation caveat**: Koko currently supports a single CDP browser context per `koko serve`
 > connection (a second `Target.createBrowserContext` errors). These options are applied per-page, but
 > the underlying engine state (user agent, locale, timezone, geolocation, permissions, extra headers) is
 > connection-wide — multiple `browser.newContext()` calls on the **same** `Browser` are not isolated
@@ -163,25 +163,25 @@ origin you care about before calling it. Restored localStorage is applied via an
 init script (runs before page scripts on every matching navigation); cookies are restored immediately
 since they aren't origin-execution-dependent.
 
-## Velora-only features (not in Playwright)
+## Koko-only features (not in Playwright)
 
-Velora adds a **`Velora` CDP domain** and **agent-oriented APIs** for AI automation and high-density crawling.
+Koko adds a **`Koko` CDP domain** and **agent-oriented APIs** for AI automation and high-density crawling.
 
 ### Launch (default)
 
 ```ts
 const launched = await Browser.launch();
-// Homebrew binary + the built-in `velora` fingerprint
+// Homebrew binary + the built-in `koko` fingerprint
 console.log(launched.installSource); // "homebrew"
 await launched.close();
 ```
 
 ### Launch with antidetect profile
 
-Velora uses a Chrome-style **user-data-dir** for session state (cookies, localStorage, cache).
+Koko uses a Chrome-style **user-data-dir** for session state (cookies, localStorage, cache).
 Identity comes from a **fingerprint folder** — installed under
 `browser/fingerprints/<id>/`, embedded in a profile at `<profile>/fingerprint/`, or carried
-in a **portable bundle** (`.velora-profile/`).
+in a **portable bundle** (`.koko-profile/`).
 
 ```ts
 import {
@@ -193,19 +193,19 @@ import {
   createProfile,
   exportProfile,
   importProfile,
-} from "velora-sdk";
+} from "koko-sdk";
 
 // Installed fingerprint id (no local profile folder required)
 const launched = await Browser.launch({
   profile: "my-session",
   fingerprint: "chrome-macos-sonoma",
-  dataRoot: "/path/to/velora-engine",
+  dataRoot: "/path/to/koko-engine",
 });
 
 // Or launch from a portable bundle
 await Browser.launch({
   profile: "my-tenant-profile",
-  profileBundle: "/path/to/my-tenant-profile.velora-profile",
+  profileBundle: "/path/to/my-tenant-profile.koko-profile",
 });
 
 const page = await launched.browser.newPage();
@@ -213,17 +213,17 @@ const page = await launched.browser.newPage();
 await launched.close();
 ```
 
-**Profile CLI** (wraps `velora profile`):
+**Profile CLI** (wraps `koko profile`):
 
 ```ts
-listFingerprints("/path/to/velora-engine"); // ["chrome-macos-sonoma", "velora", ...]
+listFingerprints("/path/to/koko-engine"); // ["chrome-macos-sonoma", "koko", ...]
 await listProfiles({ dataRoot: "..." });    // [{ name, fingerprint, profileDir, active }]
 await createProfile({ name: "my-profile", fingerprint: "chrome-macos-sonoma", dataRoot: "..." });
 await exportProfile({ name: "my-profile", dataRoot: "..." });
-await importProfile({ name: "restored", from: "/path/to/bundle.velora-profile", dataRoot: "..." });
+await importProfile({ name: "restored", from: "/path/to/bundle.koko-profile", dataRoot: "..." });
 ```
 
-On first launch, Velora creates `~/Library/Application Support/velora/<profile>/` with
+On first launch, Koko creates `~/Library/Application Support/koko/<profile>/` with
 `Preferences.json` **v3** (`{ version: 3, name, fingerprint }`). Any other version is rejected
 by the engine before the CDP server starts.
 
@@ -233,7 +233,7 @@ Resolution order for `--fingerprint-folder`: explicit folder → bundle → prof
 
 ### Engine options
 
-Every `velora serve` flag is reachable from `Browser.launch()` / `launchVelora()` — proxying,
+Every `koko serve` flag is reachable from `Browser.launch()` / `launchKoko()` — proxying,
 HTTP tuning, network guards, storage and the full logging surface:
 
 ```ts
@@ -254,14 +254,14 @@ const launched = await Browser.launch({
 console.log(launched.args); // exact argv, for reproducing a run
 ```
 
-### One-shot dump (`velora fetch`)
+### One-shot dump (`koko fetch`)
 
 `dump()` drives the engine's CLI path, which reaches renderers and wait conditions the CDP
 path does not expose — markdown/semantic-tree output, `--strip-mode`, iframe inlining,
 script/selector waits, and the hard `--terminate-ms` deadline.
 
 ```ts
-import { dump } from "velora-sdk";
+import { dump } from "koko-sdk";
 
 const result = await dump("https://example.com", {
   format: "markdown",          // html | markdown (see note below)
@@ -276,7 +276,7 @@ console.log(result.body, result.exitCode);
 ```
 
 > The engine lists `semantic_tree` / `semantic_tree_text` under `fetch --dump`, but its CLI
-> path emits nothing for them (velora 1.0.2). Use `page.agent.semanticTree()` over CDP for
+> path emits nothing for them (koko 1.0.2). Use `page.agent.semanticTree()` over CDP for
 > those; `dump()` raises a clear error rather than returning an empty document.
 >
 > `dump()` reports a non-zero `exitCode` instead of throwing when the document itself is
@@ -287,13 +287,13 @@ console.log(result.body, result.exitCode);
 ```ts
 await Browser.launch({
   profileId: "prof_demo",
-  veloraApi: "http://127.0.0.1:3940",
-  apiKey: process.env.VELORA_API_KEY, // optional
+  kokoApi: "http://127.0.0.1:3940",
+  apiKey: process.env.KOKO_API_KEY, // optional
 });
 ```
 
-SDK fetches snapshot + session from the API, hydrates to a temp dir, launches velora, and flushes
-session back on `close()`. Use the sibling `velora-api` mock server for local dev.
+SDK fetches snapshot + session from the API, hydrates to a temp dir, launches koko, and flushes
+session back on `close()`. Use the sibling `koko-api` mock server for local dev.
 
 ### AI extraction (token-efficient)
 
@@ -312,7 +312,7 @@ Semantic tree / interactive scans return stable `backendNodeId` handles. Use `No
 ```ts
 const [search] = await page.findElement({ role: "combobox", name: "search" });
 const input = page.node(search.backendNodeId!);
-await input.fill("velora browser");
+await input.fill("koko browser");
 
 const submit = await page.waitForSelectorHandle('input[name="btnK"]');
 await submit.click();
@@ -330,7 +330,7 @@ Includes TTFX probe, block detection (`/sorry`, captcha), and `pathHint` diagnos
 ### Crawl extract + session persistence
 
 ```ts
-import { createCrawlWorker, captureSessionState, restoreSessionState } from "velora-sdk";
+import { createCrawlWorker, captureSessionState, restoreSessionState } from "koko-sdk";
 
 const worker = await createCrawlWorker("http://127.0.0.1:9222");
 const result = await worker.crawl({ url: "https://en.wikipedia.org/wiki/Earth" });
@@ -340,7 +340,7 @@ const state = await captureSessionState(page, "https://example.com");
 await restoreSessionState(page, state);
 ```
 
-### Velora `waitUntil: "done"`
+### Koko `waitUntil: "done"`
 
 Default navigation wait (also MCP default): load + network idle + document complete. Stricter than Playwright `networkidle`.
 
@@ -364,16 +364,16 @@ await page.unroute(); // remove all handlers, disables Fetch domain
 
 ### Proactive JavaScript dialogs
 
-Pre-arm alert/confirm/prompt responses before triggering JS (Velora headless auto-dismiss breaks reactive CDP):
+Pre-arm alert/confirm/prompt responses before triggering JS (Koko headless auto-dismiss breaks reactive CDP):
 
 ```ts
 await page.armDialog({ accept: true, promptText: "hello" });
 await page.evaluate("prompt('Name?')");
 ```
 
-## API map (Playwright → Velora SDK)
+## API map (Playwright → Koko SDK)
 
-| Playwright | Velora SDK | Notes |
+| Playwright | Koko SDK | Notes |
 |------------|------------|-------|
 | `chromium.connectOverCDP()` | `Browser.connect()` | WebSocket CDP endpoint |
 | `browser.newContext()` | `browser.newContext()` | Client-side page grouping |
@@ -415,28 +415,28 @@ await page.evaluate("prompt('Name?')");
 | `page.pdf()` | `page.pdf()` | |
 | `page.addInitScript()` | `page.addInitScript()` | |
 | `page.setViewportSize()` | `page.setViewportSize()` | |
-| `page.search()` | `page.search()` | Velora helper: goto search page + type + Enter |
-| `page.extract()` | `page.extract()` | Velora crawler helper (TTFX + structured extract) |
+| `page.search()` | `page.search()` | Koko helper: goto search page + type + Enter |
+| `page.extract()` | `page.extract()` | Koko crawler helper (TTFX + structured extract) |
 | `page.route()` | `page.route()` | `Fetch` domain: continue/fulfill/abort |
 | `page.unroute()` | `page.unroute()` | |
 | `captureSessionState()` | `captureSessionState()` | Cookies + storage snapshot |
 | `restoreSessionState()` | `restoreSessionState()` | |
 
-### Velora-only SDK APIs
+### Koko-only SDK APIs
 
 | API | Description |
 |-----|-------------|
-| `Browser.launch()` | Spawn Velora with a profile, fingerprint id, folder, or bundle |
+| `Browser.launch()` | Spawn Koko with a profile, fingerprint id, folder, or bundle |
 | `listFingerprints()` | Installed fingerprint ids under `browser/fingerprints/` |
 | `resolveFingerprintFolder()` | Resolve the folder passed as `--fingerprint-folder` |
-| `listProfiles()` / `createProfile()` / `deleteProfile()` | Profile management via `velora profile` |
+| `listProfiles()` / `createProfile()` / `deleteProfile()` | Profile management via `koko profile` |
 | `importCookies()` / `exportProfile()` / `importProfile()` | Cookie seeding and portable bundles |
 | `defaultUserDataDir()` | OS default user-data-dir path |
 | `profileCookiesPath()` | `Cookies.json` path for a named profile |
 | `fetch()` | Programmatic CDP fetch (html / md / json) |
-| `dump()` | One-shot `velora fetch` (markdown, semantic tree, strip, waits) |
+| `dump()` | One-shot `koko fetch` (markdown, semantic tree, strip, waits) |
 | `toEngineArgs()` | Render engine options as CLI argv |
-| `page.agent` / `VeloraClient` | Low-level `Velora.*` CDP namespace |
+| `page.agent` / `KokoClient` | Low-level `Koko.*` CDP namespace |
 | `page.markdown()` | Token-efficient page text |
 | `page.semanticTree()` | Pruned a11y DOM for LLMs |
 | `page.getStructuredData()` | JSON-LD, OpenGraph, meta |
@@ -446,11 +446,11 @@ await page.evaluate("prompt('Name?')");
 | `page.node()` / `NodeHandle` | Stable backend-node actions |
 | `page.waitForSelectorHandle()` | CSS wait → `NodeHandle` |
 | `page.searchGoogle()` | Google SERP extract + block detect |
-| `page.armDialog()` | `Velora.handleJavaScriptDialog` pre-arm |
+| `page.armDialog()` | `Koko.handleJavaScriptDialog` pre-arm |
 | `page.agent.clickSelector()` | Engine-side click: selector poll + actionability |
 | `page.agent.fillSelector()` | Engine-side fill (survives SPA frame swaps) |
 | `page.agent.selectOptionSelector()` | Engine-side `<select>` option pick |
-| `waitUntil: "done"` | Velora parse + network idle wait |
+| `waitUntil: "done"` | Koko parse + network idle wait |
 | `page.route()` / `Route` | Request interception via CDP `Fetch` domain |
 
 ### Not in SDK (use CDP client or MCP)
@@ -474,13 +474,13 @@ await page.evaluate("prompt('Name?')");
 
 ```bash
 # HTML (default wait: domcontentloaded)
-VELORA_CDP=http://127.0.0.1:9222 npx velora-fetch https://example.com
+KOKO_CDP=http://127.0.0.1:9222 npx koko-fetch https://example.com
 
 # Launch with antidetect profile
-npx velora-fetch https://example.com --launch --profile chrome-local-huys-macbook-pro
+npx koko-fetch https://example.com --launch --profile chrome-local-huys-macbook-pro
 
 # Structured extract (JSON)
-VELORA_CDP=http://127.0.0.1:9222 npx velora-fetch https://en.wikipedia.org/wiki/Earth --extract
+KOKO_CDP=http://127.0.0.1:9222 npx koko-fetch https://en.wikipedia.org/wiki/Earth --extract
 ```
 
 ## Modules
@@ -488,7 +488,7 @@ VELORA_CDP=http://127.0.0.1:9222 npx velora-fetch https://en.wikipedia.org/wiki/
 - `transport/`: WebSocket CDP transport with request ids, timeout handling and pending rejection on close.
 - `cdp/`: client/session/event/error layer, including flattened session routing.
 - `browser/`: Browser/Page/Context/Locator, wait strategies, network tracking, crawl helpers.
-- `cli/`: `velora-fetch` built on the SDK.
+- `cli/`: `koko-fetch` built on the SDK.
 
 ## Build
 
@@ -501,23 +501,23 @@ npm run build
 ## Testing
 
 Unit tests run against `locator-query`'s resolver via a real DOM (jsdom) and against faked
-CDP transports/sessions — no live `velora serve` connection or browser required, so they're safe
+CDP transports/sessions — no live `koko serve` connection or browser required, so they're safe
 to run in CI.
 
 ```bash
 npm test          # vitest run
 npm run test:watch
 ```
-## Velora-exclusive APIs
+## Koko-exclusive APIs
 
-Velora keeps portable browser automation separate from semantic and agent
+Koko keeps portable browser automation separate from semantic and agent
 features:
 
 ```ts
-const tree = await page.velora.semanticTree({ maxDepth: 6 });
-const markdown = await page.velora.markdown();
-const forms = await page.velora.forms();
-const links = await page.velora.links({ details: true, internalOnly: true });
+const tree = await page.koko.semanticTree({ maxDepth: 6 });
+const markdown = await page.koko.markdown();
+const forms = await page.koko.forms();
+const links = await page.koko.links({ details: true, internalOnly: true });
 
 const article = await page.extract<{ title: string }>({
   expression: `({ title: document.querySelector("h1")?.textContent?.trim() })`,
@@ -573,7 +573,7 @@ const context = launched.browser.persona({
 ```
 
 Reasoning is provider-neutral and opt-in. Implement `AgentReasoner` for the
-model provider you use; Velora supplies snapshots, deterministic tools, policy,
+model provider you use; Koko supplies snapshots, deterministic tools, policy,
 audit, plan validation and workflow execution:
 
 ```ts

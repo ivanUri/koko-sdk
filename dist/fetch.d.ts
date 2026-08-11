@@ -5,7 +5,7 @@ export type FetchFormat = "html" | "md" | "json";
 export interface FetchOptions {
     /** Output format (default: html). */
     format?: FetchFormat;
-    /** Start velora automatically (default: true). */
+    /** Start koko automatically (default: true). */
     launch?: boolean;
     /** CDP endpoint when launch is false. */
     endpoint?: string;
@@ -14,13 +14,13 @@ export interface FetchOptions {
     logger?: boolean;
     /** Write result to this file path. */
     output?: string;
-    /** Passed to `launchVelora` when `launch` is true. */
+    /** Passed to `launchKoko` when `launch` is true. */
     profile?: string;
     profilePool?: string[];
     userDataDir?: string;
     /** Self-contained fingerprint folder (`--fingerprint-folder`). */
     fingerprintFolder?: string;
-    /** Portable `.velora-profile` bundle directory. */
+    /** Portable `.koko-profile` bundle directory. */
     profileBundle?: string;
     /** Installed fingerprint id under `browser/fingerprints/`. */
     fingerprint?: string;

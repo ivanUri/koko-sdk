@@ -26,7 +26,7 @@ export class Download {
     }
 }
 export async function waitForDownload(session, options = {}) {
-    const directory = options.path ?? join(process.cwd(), ".velora-downloads");
+    const directory = options.path ?? join(process.cwd(), ".koko-downloads");
     await mkdir(directory, { recursive: true });
     await session.send("Browser.setDownloadBehavior", {
         behavior: "allow",

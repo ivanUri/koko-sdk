@@ -1,10 +1,10 @@
 import { writeFile } from "node:fs/promises";
 import { Browser } from "./browser/browser.js";
-import { launchVelora } from "./browser/launch.js";
+import { launchKoko } from "./browser/launch.js";
 export async function fetch(url, options = {}) {
     const format = options.format ?? "html";
     const launch = options.launch !== false;
-    const endpoint = options.endpoint ?? process.env.VELORA_CDP ?? "http://127.0.0.1:9222";
+    const endpoint = options.endpoint ?? process.env.KOKO_CDP ?? "http://127.0.0.1:9222";
     const waitUntil = options.waitUntil ?? "domcontentloaded";
     const timeout = options.timeout ?? 30_000;
     const launchOpts = {
@@ -23,7 +23,7 @@ export async function fetch(url, options = {}) {
         repoRoot: options.repoRoot,
         logLevel: options.logLevel,
     };
-    const launched = launch ? await launchVelora(launchOpts) : null;
+    const launched = launch ? await launchKoko(launchOpts) : null;
     try {
         const browser = launched?.browser ?? await Browser.connect(endpoint, { logger: options.logger });
         const ownsBrowser = !launched;

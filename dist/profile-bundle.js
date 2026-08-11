@@ -2,9 +2,9 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { ProtocolError } from "./cdp/errors.js";
 import { defaultUserDataDir } from "./profile-paths.js";
-import { resolveVeloraInstall } from "./velora-install.js";
+import { resolveKokoInstall } from "./koko-install.js";
 function resolveInstall(options) {
-    return resolveVeloraInstall({
+    return resolveKokoInstall({
         binary: options.binary,
         dataRoot: options.dataRoot,
     });
@@ -33,7 +33,7 @@ async function runProcess(command, args, cwd) {
         });
     });
 }
-async function runVeloraProfile(subArgs, options) {
+async function runKokoProfile(subArgs, options) {
     const { binary, dataRoot } = resolveInstall(options);
     const userDataDir = options.userDataDir ?? defaultUserDataDir();
     const args = ["profile", ...subArgs, "--user-data-dir", userDataDir];
@@ -42,13 +42,13 @@ async function runVeloraProfile(subArgs, options) {
 /**
  * List profiles in user-data-dir.
  *
- * `velora profile list` renders fixed-width columns via `std.debug.print`, so
+ * `koko profile list` renders fixed-width columns via `std.debug.print`, so
  * the table arrives on **stderr**, and a name wider than its column shifts the
  * later fields. Rows are therefore anchored on the profile path (always
  * `<user-data-dir>/<name>`) rather than split on whitespace.
  */
 export async function listProfiles(options = {}) {
-    const result = await runVeloraProfile(["list"], options);
+    const result = await runKokoProfile(["list"], options);
     const text = `${result.stderr}\n${result.stdout}`;
     const lines = text.split("\n");
     const root = lines
@@ -82,10 +82,10 @@ export async function createProfile(options) {
     const args = ["create", "--name", options.name];
     if (options.fingerprint)
         args.push("--fingerprint", options.fingerprint);
-    return runVeloraProfile(args, options);
+    return runKokoProfile(args, options);
 }
 export async function deleteProfile(options) {
-    return runVeloraProfile(["delete", "--name", options.name], options);
+    return runKokoProfile(["delete", "--name", options.name], options);
 }
 /** Seed a profile's Cookies.json from an exported cookie file. */
 export async function importCookies(options) {
@@ -93,21 +93,21 @@ export async function importCookies(options) {
     if (options.name)
         args.push("--name", options.name);
     args.push("--from", resolve(options.from));
-    return runVeloraProfile(args, options);
+    return runKokoProfile(args, options);
 }
 /**
- * Export a profile to a portable `.velora-profile` bundle
+ * Export a profile to a portable `.koko-profile` bundle
  * (`fingerprint/`, `Preferences.json`, `session/`).
  */
 export async function exportProfile(options) {
     const args = ["export", "--name", options.name];
     if (options.out)
         args.push("--to", resolve(options.out));
-    return runVeloraProfile(args, options);
+    return runKokoProfile(args, options);
 }
 /** Import a bundle into user-data-dir as a named profile. */
 export async function importProfile(options) {
-    return runVeloraProfile([
+    return runKokoProfile([
         "import",
         "--name",
         options.name,

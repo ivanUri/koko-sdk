@@ -5,7 +5,7 @@ import { NetworkTracker } from "./network.js";
 import { type RouteHandler, type RoutePattern } from "./route.js";
 import { Locator, type GetByRoleOptions, type GetByTextOptions, type LocatorOptions } from "./locator.js";
 import type { ActionOptions, FillOptions, SelectOptions } from "./actions.js";
-import { VeloraClient } from "./lp-client.js";
+import { KokoClient } from "./lp-client.js";
 import { NodeHandle } from "./node-handle.js";
 import { Keyboard, Mouse } from "./input.js";
 import { type Download } from "./download.js";
@@ -97,10 +97,10 @@ export declare class Page {
     readonly waiter: PageWaiter;
     readonly keyboard: Keyboard;
     readonly mouse: Mouse;
-    /** Velora LP domain — AI extraction and backend-node agent actions. */
-    readonly agent: VeloraClient;
-    /** Stable Velora extension namespace; `agent` remains as a compatibility alias. */
-    readonly velora: VeloraClient;
+    /** Koko LP domain — AI extraction and backend-node agent actions. */
+    readonly agent: KokoClient;
+    /** Stable Koko extension namespace; `agent` remains as a compatibility alias. */
+    readonly koko: KokoClient;
     private readonly routes;
     private initialized;
     private closePromise?;

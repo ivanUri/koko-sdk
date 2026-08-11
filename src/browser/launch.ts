@@ -15,20 +15,20 @@ import {
   fingerprintDir,
   resolveFingerprintFolder,
 } from "../profile.js";
-import { resolveVeloraInstall, type VeloraInstallPreset } from "../velora-install.js";
+import { resolveKokoInstall, type KokoInstallPreset } from "../koko-install.js";
 import { toEngineArgs, type EngineCommonOptions } from "./engine-options.js";
 import { delay } from "../utils/timeout.js";
 import { ProtocolError } from "../cdp/errors.js";
 
-export interface VeloraLaunchOptions extends BrowserConnectOptions, EngineCommonOptions {
-  /** Portable `.velora-profile` bundle directory (uses `fingerprint/` inside). */
+export interface KokoLaunchOptions extends BrowserConnectOptions, EngineCommonOptions {
+  /** Portable `.koko-profile` bundle directory (uses `fingerprint/` inside). */
   profileBundle?: string;
   /** Installed fingerprint id under `browser/fingerprints/`, e.g. `chrome-macos-sonoma`. */
   fingerprint?: string;
   /** SaaS profile id — hydrate fingerprint + session from control plane API. */
   profileId?: string;
   /** Control plane base URL when using `profileId`. */
-  veloraApi?: string;
+  kokoApi?: string;
   /** Optional API key (`Authorization: Bearer`). */
   apiKey?: string;
   /** CDP port (default: auto free port). */
@@ -40,16 +40,16 @@ export interface VeloraLaunchOptions extends BrowserConnectOptions, EngineCommon
   cdpMaxConnections?: number;
   /** Max pending connections in the accept queue (`--cdp-max-pending-connections`, default 128). */
   cdpMaxPendingConnections?: number;
-  /** Path to velora binary. */
+  /** Path to koko binary. */
   binary?: string;
   /**
    * Local engine build: `homebrew`, `path`, repo/binary path, or custom
-   * name via `$VELORA_INSTALL_<NAME>`. Default / `$VELORA_INSTALL`: auto discovery.
+   * name via `$KOKO_INSTALL_<NAME>`. Default / `$KOKO_INSTALL`: auto discovery.
    */
-  install?: VeloraInstallPreset | string;
+  install?: KokoInstallPreset | string;
   /**
-   * Engine install root (`share/velora` from Homebrew, or git checkout).
-   * Sets VELORA_ROOT / VELORA_DATA for the child process.
+   * Engine install root (`share/koko` from Homebrew, or git checkout).
+   * Sets KOKO_ROOT / KOKO_DATA for the child process.
    */
   dataRoot?: string;
   /** @deprecated Use `dataRoot`. */
@@ -60,15 +60,15 @@ export interface VeloraLaunchOptions extends BrowserConnectOptions, EngineCommon
   stdio?: "ignore" | "inherit";
 }
 
-export interface LaunchedVelora {
+export interface LaunchedKoko {
   browser: Browser;
   endpoint: string;
   port: number;
   profile?: string;
-  /** Resolved `--fingerprint-folder` passed to velora, if any. */
+  /** Resolved `--fingerprint-folder` passed to koko, if any. */
   fingerprintFolder?: string;
   profileId?: string;
-  veloraApi?: string;
+  kokoApi?: string;
   /** Temp hydration dir when launched via API (cleaned on close). */
   hydratedWorkDir?: string;
   binary: string;
@@ -80,7 +80,7 @@ export interface LaunchedVelora {
   close(): Promise<void>;
 }
 
-function pickProfile(options: VeloraLaunchOptions): string | undefined {
+function pickProfile(options: KokoLaunchOptions): string | undefined {
   if (options.profile) return options.profile;
   if (options.profilePool?.length) {
     const idx = Math.floor(Math.random() * options.profilePool.length);
@@ -111,7 +111,7 @@ export async function waitForCdp(
   const pollEndpoint = async (): Promise<void> => {
     const started = Date.now();
     const exited = (): ProtocolError => new ProtocolError(
-      `velora exited before CDP was ready (code ${proc.exitCode}). `
+      `koko exited before CDP was ready (code ${proc.exitCode}). `
         + `Re-run with stdio: "inherit" to see why.`,
     );
     while (Date.now() - started < timeoutMs) {
@@ -132,7 +132,7 @@ export async function waitForCdp(
   let onSpawnError: ((error: Error) => void) | undefined;
   const spawnFailure = new Promise<never>((_, reject) => {
     onSpawnError = (error) => {
-      spawnError = new ProtocolError(`failed to spawn velora: ${error.message}`, {
+      spawnError = new ProtocolError(`failed to spawn koko: ${error.message}`, {
         payload: error,
       });
       reject(spawnError);
@@ -167,8 +167,8 @@ export async function terminateChildProcess(proc: ChildProcess, timeoutMs = 2_00
   await waitForExit();
 }
 
-export async function launchVelora(options: VeloraLaunchOptions = {}): Promise<LaunchedVelora> {
-  const install = resolveVeloraInstall(options);
+export async function launchKoko(options: KokoLaunchOptions = {}): Promise<LaunchedKoko> {
+  const install = resolveKokoInstall(options);
   const { binary, dataRoot } = install;
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? await getFreePort();
@@ -179,14 +179,14 @@ export async function launchVelora(options: VeloraLaunchOptions = {}): Promise<L
   let fingerprintFolder: string | undefined;
 
   const profileId = options.profileId;
-  const veloraApi = options.veloraApi ?? (profileId ? process.env.VELORA_API_URL : undefined);
-  const apiKey = options.apiKey ?? process.env.VELORA_API_KEY;
+  const kokoApi = options.kokoApi ?? (profileId ? process.env.KOKO_API_URL : undefined);
+  const apiKey = options.apiKey ?? process.env.KOKO_API_KEY;
 
   if (profileId) {
-    if (!veloraApi) {
-      throw new ProtocolError("profileId requires veloraApi (or VELORA_API_URL)");
+    if (!kokoApi) {
+      throw new ProtocolError("profileId requires kokoApi (or KOKO_API_URL)");
     }
-    hydrated = await hydrateRemoteProfile({ veloraApi, profileId, apiKey });
+    hydrated = await hydrateRemoteProfile({ kokoApi, profileId, apiKey });
     profile = profileId;
     userDataDir = hydrated.userDataDir;
     fingerprintFolder = hydrated.fingerprintDir;
@@ -201,10 +201,10 @@ export async function launchVelora(options: VeloraLaunchOptions = {}): Promise<L
     });
 
     // No profile and nothing to resolve from: fall back to the engine's own
-    // built-in identity so a bare launchVelora() works out of the box.
+    // built-in identity so a bare launchKoko() works out of the box.
     if (!fingerprintFolder && !profile) {
       profile = "Default";
-      const builtin = fingerprintDir(dataRoot, "velora");
+      const builtin = fingerprintDir(dataRoot, "koko");
       if (!existsSync(join(builtin, FINGERPRINT_FILE))) {
         throw new ProtocolError(
           `Built-in fingerprint not found: ${join(builtin, FINGERPRINT_FILE)}. `
@@ -241,14 +241,14 @@ export async function launchVelora(options: VeloraLaunchOptions = {}): Promise<L
     stdio: options.stdio ?? "ignore",
     env: {
       ...process.env,
-      VELORA_ROOT: dataRoot,
-      VELORA_DATA: dataRoot,
+      KOKO_ROOT: dataRoot,
+      KOKO_DATA: dataRoot,
     },
   });
   const endpoint = `http://${host}:${port}`;
 
   await waitForCdp(endpoint, proc, options.launchTimeout ?? 15_000);
-  // Launched browsers create targets explicitly; auto-attach is unstable on velora 1.0.x.
+  // Launched browsers create targets explicitly; auto-attach is unstable on koko 1.0.x.
   const browser = await Browser.connect(endpoint, {
     ...options,
     enableTargetTracking: options.enableTargetTracking ?? false,
@@ -264,14 +264,14 @@ export async function launchVelora(options: VeloraLaunchOptions = {}): Promise<L
   });
 
   let closePromise: Promise<void> | undefined;
-  const launched: LaunchedVelora = {
+  const launched: LaunchedKoko = {
     browser,
     endpoint,
     port,
     profile,
     fingerprintFolder,
     profileId: profileId ?? undefined,
-    veloraApi: veloraApi ?? undefined,
+    kokoApi: kokoApi ?? undefined,
     hydratedWorkDir: hydrated?.workDir,
     binary,
     dataRoot,
@@ -283,10 +283,10 @@ export async function launchVelora(options: VeloraLaunchOptions = {}): Promise<L
       closePromise = (async () => {
         await browser.close().catch(() => undefined);
         await terminateChildProcess(proc).catch(() => undefined);
-        if (hydrated && veloraApi) {
+        if (hydrated && kokoApi) {
           try {
             await flushRemoteSession({
-              veloraApi,
+              kokoApi,
               apiKey,
               profileId: hydrated.profileId,
               profileDir: hydrated.profileDir,

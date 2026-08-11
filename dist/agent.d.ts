@@ -56,7 +56,7 @@ export interface AgentSessionOptions {
     audit?: (event: AgentAuditEvent) => void | Promise<void>;
 }
 /**
- * Runtime agent facade over deterministic Velora browser primitives.
+ * Runtime agent facade over deterministic Koko browser primitives.
  * It performs no LLM reasoning and validates actions before dispatch.
  */
 export declare class AgentSession implements AgentCapability {

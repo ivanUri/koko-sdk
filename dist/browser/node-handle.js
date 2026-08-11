@@ -1,6 +1,6 @@
 import { StaleElementError } from "../cdp/errors.js";
 /**
- * Stable backend-node handle for Velora agent actions.
+ * Stable backend-node handle for Koko agent actions.
  * Unlike CSS locators, backendNodeId survives semantic tree / interactive element scans.
  */
 export class NodeHandle {

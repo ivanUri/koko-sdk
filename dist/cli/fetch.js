@@ -11,7 +11,7 @@ function parseArgs(argv) {
     let format = "html";
     let launch = false;
     let output;
-    let endpoint = process.env.VELORA_CDP;
+    let endpoint = process.env.KOKO_CDP;
     let waitUntil = "domcontentloaded";
     let timeout = 30_000;
     let logger = false;
@@ -71,7 +71,7 @@ function parseArgs(argv) {
                 httpProxy = next();
                 break;
             case "--data-root":
-            case "--velora-root":
+            case "--koko-root":
                 dataRoot = next();
                 break;
             case "--log-level":
@@ -116,14 +116,14 @@ function parseArgs(argv) {
     };
 }
 function usage(exitCode) {
-    console.error(`Usage: velora-fetch <url> [options]
+    console.error(`Usage: koko-fetch <url> [options]
 
-  velora-fetch https://example.com --launch -o page.html
-  velora-fetch https://example.com --launch --md -o page.md
-  velora-fetch https://example.com --launch --profile huynew
-  velora-fetch https://example.com --launch --fingerprint chrome-macos-sonoma
-  velora-fetch https://example.com --launch --profile-bundle ~/my.velora-profile
-  velora-fetch https://example.com --launch --http-proxy http://user:pass@host:8080
+  koko-fetch https://example.com --launch -o page.html
+  koko-fetch https://example.com --launch --md -o page.md
+  koko-fetch https://example.com --launch --profile huynew
+  koko-fetch https://example.com --launch --fingerprint chrome-macos-sonoma
+  koko-fetch https://example.com --launch --profile-bundle ~/my.koko-profile
+  koko-fetch https://example.com --launch --http-proxy http://user:pass@host:8080
 `);
     process.exit(exitCode);
 }

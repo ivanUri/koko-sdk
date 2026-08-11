@@ -1,17 +1,17 @@
 import { type ChildProcess } from "node:child_process";
 import { Browser } from "./browser.js";
 import type { BrowserConnectOptions } from "./browser.js";
-import { type VeloraInstallPreset } from "../velora-install.js";
+import { type KokoInstallPreset } from "../koko-install.js";
 import { type EngineCommonOptions } from "./engine-options.js";
-export interface VeloraLaunchOptions extends BrowserConnectOptions, EngineCommonOptions {
-    /** Portable `.velora-profile` bundle directory (uses `fingerprint/` inside). */
+export interface KokoLaunchOptions extends BrowserConnectOptions, EngineCommonOptions {
+    /** Portable `.koko-profile` bundle directory (uses `fingerprint/` inside). */
     profileBundle?: string;
     /** Installed fingerprint id under `browser/fingerprints/`, e.g. `chrome-macos-sonoma`. */
     fingerprint?: string;
     /** SaaS profile id — hydrate fingerprint + session from control plane API. */
     profileId?: string;
     /** Control plane base URL when using `profileId`. */
-    veloraApi?: string;
+    kokoApi?: string;
     /** Optional API key (`Authorization: Bearer`). */
     apiKey?: string;
     /** CDP port (default: auto free port). */
@@ -23,16 +23,16 @@ export interface VeloraLaunchOptions extends BrowserConnectOptions, EngineCommon
     cdpMaxConnections?: number;
     /** Max pending connections in the accept queue (`--cdp-max-pending-connections`, default 128). */
     cdpMaxPendingConnections?: number;
-    /** Path to velora binary. */
+    /** Path to koko binary. */
     binary?: string;
     /**
      * Local engine build: `homebrew`, `path`, repo/binary path, or custom
-     * name via `$VELORA_INSTALL_<NAME>`. Default / `$VELORA_INSTALL`: auto discovery.
+     * name via `$KOKO_INSTALL_<NAME>`. Default / `$KOKO_INSTALL`: auto discovery.
      */
-    install?: VeloraInstallPreset | string;
+    install?: KokoInstallPreset | string;
     /**
-     * Engine install root (`share/velora` from Homebrew, or git checkout).
-     * Sets VELORA_ROOT / VELORA_DATA for the child process.
+     * Engine install root (`share/koko` from Homebrew, or git checkout).
+     * Sets KOKO_ROOT / KOKO_DATA for the child process.
      */
     dataRoot?: string;
     /** @deprecated Use `dataRoot`. */
@@ -42,15 +42,15 @@ export interface VeloraLaunchOptions extends BrowserConnectOptions, EngineCommon
     /** Inherit engine stdio instead of discarding it. Useful when debugging startup. */
     stdio?: "ignore" | "inherit";
 }
-export interface LaunchedVelora {
+export interface LaunchedKoko {
     browser: Browser;
     endpoint: string;
     port: number;
     profile?: string;
-    /** Resolved `--fingerprint-folder` passed to velora, if any. */
+    /** Resolved `--fingerprint-folder` passed to koko, if any. */
     fingerprintFolder?: string;
     profileId?: string;
-    veloraApi?: string;
+    kokoApi?: string;
     /** Temp hydration dir when launched via API (cleaned on close). */
     hydratedWorkDir?: string;
     binary: string;
@@ -63,4 +63,4 @@ export interface LaunchedVelora {
 }
 export declare function waitForCdp(endpoint: string, proc: ChildProcess, timeoutMs: number): Promise<void>;
 export declare function terminateChildProcess(proc: ChildProcess, timeoutMs?: number): Promise<void>;
-export declare function launchVelora(options?: VeloraLaunchOptions): Promise<LaunchedVelora>;
+export declare function launchKoko(options?: KokoLaunchOptions): Promise<LaunchedKoko>;

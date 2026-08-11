@@ -1,6 +1,6 @@
-Senior Architecture Review – Velora SDK
+Senior Architecture Review – Koko SDK
 Executive summary
-Tôi đã đọc toàn bộ repository velora-sdk, gồm 45 file TypeScript, source, tests, examples, scripts, cấu hình build/package; đồng thời dựng dependency/call graph và chạy lại baseline.
+Tôi đã đọc toàn bộ repository koko-sdk, gồm 45 file TypeScript, source, tests, examples, scripts, cấu hình build/package; đồng thời dựng dependency/call graph và chạy lại baseline.
 Kết quả xác minh:
 npm test: 36/36 test pass.
 npm run typecheck: pass.
@@ -9,14 +9,14 @@ npm pack --dry-run: pass.
 Branch main sạch và đồng bộ origin/main.
 HEAD: 064fc99 feat: complete product SDK APIs and tests.
 Kết luận ngắn:
-Velora SDK hiện là một TypeScript client tốt cho Velora qua CDP, có các primitive browser automation tương đối quen thuộc và một tập API semantic/agent rất có tiềm năng. Tuy nhiên, nó chưa phải một browser automation framework độc lập, ổn định và đa-driver.
+Koko SDK hiện là một TypeScript client tốt cho Koko qua CDP, có các primitive browser automation tương đối quen thuộc và một tập API semantic/agent rất có tiềm năng. Tuy nhiên, nó chưa phải một browser automation framework độc lập, ổn định và đa-driver.
 
-Rào cản kiến trúc lớn nhất là public API đang gắn trực tiếp với CDP và đặc điểm riêng của Velora ở hầu hết các tầng. Driver boundary chưa tồn tại; Page đang mang quá nhiều trách nhiệm; cancellation, lifecycle và event API còn thiếu.
+Rào cản kiến trúc lớn nhất là public API đang gắn trực tiếp với CDP và đặc điểm riêng của Koko ở hầu hết các tầng. Driver boundary chưa tồn tại; Page đang mang quá nhiều trách nhiệm; cancellation, lifecycle và event API còn thiếu.
 Điểm hiện tại: 6.4/10.
-Tiềm năng sau khi hoàn thành Driver Interface, lifecycle model và Velora Extension layer: 8.5–9/10.
+Tiềm năng sau khi hoàn thành Driver Interface, lifecycle model và Koko Extension layer: 8.5–9/10.
 1. Repository Overview
 Cấu trúc
-velora-sdk/
+koko-sdk/
 ├── src/
 │   ├── browser/
 │   │   ├── browser.ts
@@ -44,7 +44,7 @@ velora-sdk/
 │   ├── transport/
 │   │   └── websocket.ts
 │   ├── profile*.ts
-│   ├── velora-install.ts
+│   ├── koko-install.ts
 │   ├── fetch.ts
 │   ├── dump.ts
 │   └── index.ts
@@ -60,7 +60,7 @@ Public API
     ├── Browser / Context / Page / Locator
     │             │
     │             ├── Network / Route / Input / Waiter
-    │             └── VeloraClient – semantic/agent APIs
+    │             └── KokoClient – semantic/agent APIs
     │
     ├── Profile / Install / Launch / Dump / Fetch
     │
@@ -71,13 +71,13 @@ CDPClient / CDPSession
 WebSocketTransport
     │
     ▼
-Velora Runtime
+Koko Runtime
 Đây là kiến trúc phân lớp hợp lý cho một CDP SDK, nhưng chưa phải kiến trúc driver-neutral.
 Dependency graph cho thấy:
 browser → cdp: coupling mạnh và trực tiếp.
 transport → cdp: transport tạo trực tiếp các CDP error.
 Page là điểm hội tụ của navigation, input, locator, network, routing, extraction và agent API.
-VeloraClient.method() là điểm hội tụ của gần như toàn bộ Velora domain.
+KokoClient.method() là điểm hội tụ của gần như toàn bộ Koko domain.
 Page.init(), locator resolution và timeout utility là các hotspot có fan-in cao.
 Build và package
 Package dùng:
@@ -87,7 +87,7 @@ Node.js >=20.
 ws là runtime dependency duy nhất.
 Vitest cho test.
 tsc cho build.
-Cấu hình nhìn chung đơn giản và dễ duy trì tại [package.json (line 1)](/Users/huydev/Desktop/velora/velora-sdk/package.json:1).
+Cấu hình nhìn chung đơn giản và dễ duy trì tại [package.json (line 1)](/Users/huydev/Desktop/koko/koko-sdk/package.json:1).
 Những vấn đề packaging:
 Chưa có exports map.
 Root package xuất gần như toàn bộ low-level internals.
@@ -112,9 +112,9 @@ Launch/termination.
 Navigation correlation.
 Network tracking.
 Route handler lifecycle.
-Velora semantic APIs.
+Koko semantic APIs.
 Profile/control-plane.
-Integration với Velora Runtime thật.
+Integration với Koko Runtime thật.
 Compatibility với Chrome.
 Package consumer smoke test.
 Examples hiện khá hữu ích: crawl, semantic agent và markdown dump. Nhưng chúng chưa được chạy như một phần CI.
@@ -132,29 +132,29 @@ PageWaiter	Navigation/load/network-idle waiting	Cần correlation và deadline m
 CDPClient	Browser-level protocol, target/session tracking	Là protocol facade, chưa phải Driver
 CDPSession	Session-scoped commands/events	Gọn, nhưng thiếu cancellation
 WebSocketTransport	Request ID, timeout, message dispatch	Hợp lý nhưng lifecycle chưa production-grade
-VeloraClient	Semantic tree, markdown, forms, structured data	Lợi thế cạnh tranh rõ
+KokoClient	Semantic tree, markdown, forms, structured data	Lợi thế cạnh tranh rõ
 Profile/install	Local/remote profile và binary discovery	Có giá trị nhưng không nên nằm chung root namespace
 
 Cohesion
 Điểm tốt:
 NetworkTracker, CDPSession, EventBus, input và profile helpers tương đối cohesive.
-Semantic features được tập trung qua VeloraClient.
+Semantic features được tập trung qua KokoClient.
 Transport, protocol và browser facade đã được tách thành thư mục riêng.
 Điểm yếu:
-[Page (line 105)](/Users/huydev/Desktop/velora/velora-sdk/src/browser/page.ts:105) là god object hơn 500 dòng.
-Page vừa là portable browser API, vừa là Velora extension, vừa chứa các helper cụ thể như Google search và generic extraction có logic Wikipedia.
-Root export trộn API consumer, low-level protocol, utility, profile filesystem và product-control-plane tại [index.ts (line 1)](/Users/huydev/Desktop/velora/velora-sdk/src/index.ts:1).
+[Page (line 105)](/Users/huydev/Desktop/koko/koko-sdk/src/browser/page.ts:105) là god object hơn 500 dòng.
+Page vừa là portable browser API, vừa là Koko extension, vừa chứa các helper cụ thể như Google search và generic extraction có logic Wikipedia.
+Root export trộn API consumer, low-level protocol, utility, profile filesystem và product-control-plane tại [index.ts (line 1)](/Users/huydev/Desktop/koko/koko-sdk/src/index.ts:1).
 Coupling
-Coupling với Velora Runtime là cao:
+Coupling với Koko Runtime là cao:
 Browser giữ concrete CDPClient.
 Page, Context, Locator, Network, Route giữ hoặc gọi concrete CDPSession.
-Các module gọi trực tiếp method string như Page.navigate, Runtime.evaluate, Velora.*.
+Các module gọi trực tiếp method string như Page.navigate, Runtime.evaluate, Koko.*.
 Launch mirror trực tiếp CLI flags, filesystem layout, fingerprints và profile control plane.
-Một số semantics phụ thuộc riêng vào Velora: waitUntil: "done", dialog behavior, profile restrictions và Velora.*.
+Một số semantics phụ thuộc riêng vào Koko: waitUntil: "done", dialog behavior, profile restrictions và Koko.*.
 Extensibility
-Có thể mở rộng thêm method trên Velora hiện tại khá dễ. Nhưng việc thêm Chrome, Firefox hoặc remote driver sẽ khó vì protocol đã xuyên qua object model.
+Có thể mở rộng thêm method trên Koko hiện tại khá dễ. Nhưng việc thêm Chrome, Firefox hoặc remote driver sẽ khó vì protocol đã xuyên qua object model.
 Đánh giá:
-Mở rộng tính năng cho Velora: 8/10.
+Mở rộng tính năng cho Koko: 8/10.
 Mở rộng backend/driver mới: 3.5/10.
 Maintainability khi API tăng gấp đôi: 5.5/10.
 3. Public API Review
@@ -171,12 +171,12 @@ await page.getByLabel("Email").fill("user@example.com");
 Browser → Context → Page → Locator là mental model đã được thị trường kiểm chứng.
 first(), last(), nth(), getByRole(), getByText() dễ dùng.
 storageState() dùng shape gần Playwright.
-page.agent.semanticTree(), markdown(), forms() thể hiện đúng thế mạnh Velora.
+page.agent.semanticTree(), markdown(), forms() thể hiện đúng thế mạnh Koko.
 Request/Response wrappers tốt hơn việc trả raw CDP payload.
 NodeHandle tạo nền móng tốt cho stable agent actions.
 API quá phức tạp hoặc đặt sai tầng
 Root namespace quá rộng
-[index.ts (line 1)](/Users/huydev/Desktop/velora/velora-sdk/src/index.ts:1) export cùng lúc:
+[index.ts (line 1)](/Users/huydev/Desktop/koko/koko-sdk/src/index.ts:1) export cùng lúc:
 Browser APIs.
 CDP internals.
 Transport.
@@ -192,14 +192,14 @@ Khó xác định API nào stable.
 Thay đổi internals trở thành semver-breaking.
 Người dùng không biết entry point khuyến nghị.
 Nên chia:
-velora-sdk
-velora-sdk/agent
-velora-sdk/profile
-velora-sdk/cdp
-velora-sdk/driver
-velora-sdk/testing
+koko-sdk
+koko-sdk/agent
+koko-sdk/profile
+koko-sdk/cdp
+koko-sdk/driver
+koko-sdk/testing
 Page.extract() không thật sự generic
-Default expression đang tìm #firstHeading và /wiki/ tại [page.ts (line 82)](/Users/huydev/Desktop/velora/velora-sdk/src/browser/page.ts:82).
+Default expression đang tìm #firstHeading và /wiki/ tại [page.ts (line 82)](/Users/huydev/Desktop/koko/koko-sdk/src/browser/page.ts:82).
 Một method có tên generic không được chứa mặc định riêng của Wikipedia.
 Nên đổi thành một trong hai:
 await page.extract({
@@ -214,7 +214,7 @@ fill() thay toàn bộ value.
 type() phát sinh chuỗi keyboard event.
 Nếu type() chỉ alias fill(), người chuyển từ Playwright sẽ nhận behavior sai. Nên implement typing thật hoặc deprecate method.
 page.url() là async
-Playwright trả URL đồng bộ từ cached page state. Velora hiện buộc người dùng await page.url().
+Playwright trả URL đồng bộ từ cached page state. Koko hiện buộc người dùng await page.url().
 Đề xuất:
 page.url(): string;
 await page.currentUrl(): Promise<string>; // chỉ khi cần hỏi driver
@@ -224,7 +224,7 @@ Nên trả:
 Promise<Response | null>
 Điều này quan trọng cho status, headers, redirect chain và lỗi navigation.
 Context isolation gây hiểu nhầm
-Code đã document trung thực rằng multiple contexts không isolated và last write wins tại [context.ts (line 49)](/Users/huydev/Desktop/velora/velora-sdk/src/browser/context.ts:49).
+Code đã document trung thực rằng multiple contexts không isolated và last write wins tại [context.ts (line 49)](/Users/huydev/Desktop/koko/koko-sdk/src/browser/context.ts:49).
 Đây là vấn đề semantic, không chỉ documentation. Nếu chưa thể thực hiện isolation thật, nên:
 Expose capability isolatedContexts: false.
 Chặn tạo context thứ hai với identity options xung đột; hoặc
@@ -237,7 +237,7 @@ Browser, BrowserContext, Page, Locator.
 waitForRequest, waitForResponse, storageState.
 semanticTree, markdown, interactiveElements.
 Naming cần đổi:
-LPClient: “LP” không tự mô tả. Nên dùng VeloraAgent, SemanticPage hoặc VeloraPageExtensions.
+LPClient: “LP” không tự mô tả. Nên dùng KokoAgent, SemanticPage hoặc KokoPageExtensions.
 fetch: xung đột mental model với global fetch.
 dump: quá chung.
 search: không rõ là web search, form search hay site search.
@@ -245,17 +245,17 @@ extract: generic nhưng implementation cụ thể.
 LocatorOptions.has?: boolean: nếu được dùng như strictness thì phải đổi thành strict; has trong Playwright thường nhận một locator.
 Discoverability và autocomplete
 TypeScript types tốt, nhưng root exports quá rộng. Nên hướng người dùng tới surface nhỏ:
-import { velora } from "velora-sdk";
+import { koko } from "koko-sdk";
 
-const browser = await velora.launch();
+const browser = await koko.launch();
 Advanced API:
-import { CDPClient } from "velora-sdk/cdp";
-import { profiles } from "velora-sdk/profile";
+import { CDPClient } from "koko-sdk/cdp";
+import { profiles } from "koko-sdk/profile";
 Fluent API
 Locator API có tính fluent tốt. Agent API cũng tương đối dễ dùng:
 await page.agent.markdown();
 await page.agent.semanticTree();
-Không nên duplicate toàn bộ agent methods trực tiếp lên Page. Chọn một canonical form là page.velora.* hoặc page.agent.*.
+Không nên duplicate toàn bộ agent methods trực tiếp lên Page. Chọn một canonical form là page.koko.* hoặc page.agent.*.
 Error messages
 Một số protocol error có method/session/payload, đây là nền tảng tốt. Nhưng lỗi launch, timeout và lifecycle chưa đưa đủ thông tin hành động:
 Endpoint.
@@ -268,14 +268,14 @@ Cause.
 Suggested remediation.
 5. Driver Architecture
 Coupling hiện tại
-SDK phụ thuộc trực tiếp Velora Runtime ở ba mức:
+SDK phụ thuộc trực tiếp Koko Runtime ở ba mức:
 Protocol:
 Page/Locator/Network → CDPSession → method strings
 Extension:
-Page.agent → Velora.* CDP domain
+Page.agent → Koko.* CDP domain
 Product/runtime:
-launchVelora → binary discovery → CLI flags → profiles → runtime process
-[launch.ts (line 129)](/Users/huydev/Desktop/velora/velora-sdk/src/browser/launch.ts:129) vừa resolve installation, hydrate profile, dựng argv, spawn process, poll endpoint, connect và cleanup. Đây là coupling rất mạnh.
+launchKoko → binary discovery → CLI flags → profiles → runtime process
+[launch.ts (line 129)](/Users/huydev/Desktop/koko/koko-sdk/src/browser/launch.ts:129) vừa resolve installation, hydrate profile, dựng argv, spawn process, poll endpoint, connect và cleanup. Đây là coupling rất mạnh.
 Kiến trúc Driver đề xuất
 Không nên tạo một interface khổng lồ. Nên dùng capability-based interfaces:
 interface BrowserDriver {
@@ -309,15 +309,15 @@ Portable Browser API
         ▼
 Capability-based Driver Contracts
         │
-        ├── Velora CDP Driver
+        ├── Koko CDP Driver
         ├── Chrome CDP Driver
-        ├── Remote Velora Driver
+        ├── Remote Koko Driver
         └── WebDriver BiDi Driver
 Firefox không nên được gọi là “Firefox CDP Driver”. Nếu hỗ trợ Firefox hiện đại, nên đi qua WebDriver BiDi hoặc adapter riêng.
 Khả năng mở rộng
 Sau khi tách driver:
 Chrome support: khả thi cao.
-Remote Velora: rất tự nhiên.
+Remote Koko: rất tự nhiên.
 Firefox/BiDi: khả thi nhưng cần abstraction đủ cao.
 Embedded/in-process Zig driver trong tương lai: có thể triển khai mà không đổi public API.
 Testing driver/fake driver: giúp unit test Page mà không cần browser thật.
@@ -345,7 +345,7 @@ Trace viewer.
 Device registry toàn bộ.
 Mọi selector engine và edge case.
 Exact class hierarchy.
-Velora nên ưu tiên runtime nhỏ, semantic extraction, deterministic agent actions và browser profiles.
+Koko nên ưu tiên runtime nhỏ, semantic extraction, deterministic agent actions và browser profiles.
 Khác biệt hiện tại làm migration khó
 page.url() async.
 Navigation trả void.
@@ -354,13 +354,13 @@ Locator chaining chưa chắc là descendant scoping giống Playwright.
 Locator resolver luôn lọc visibility, có thể làm count() khác.
 getByRole() là heuristic DOM, không phải accessibility semantics đầy đủ.
 Context không isolated.
-Route string chỉ kiểm tra substring hoặc "*" tại [route.ts (line 74)](/Users/huydev/Desktop/velora/velora-sdk/src/browser/route.ts:74), trong khi pattern kiểu "**/*.png" dễ khiến người dùng nghĩ là glob.
+Route string chỉ kiểm tra substring hoặc "*" tại [route.ts (line 74)](/Users/huydev/Desktop/koko/koko-sdk/src/browser/route.ts:74), trong khi pattern kiểu "**/*.png" dễ khiến người dùng nghĩ là glob.
 Event API công khai chưa đầy đủ.
 Migration cost hiện tại:
 Script crawl đơn giản: thấp, 2–3/10.
 Form automation: trung bình, 4–6/10.
 Test suite Playwright lớn: cao, 7–9/10.
-7. Velora Exclusive Features
+7. Koko Exclusive Features
 Đây nên là vùng khác biệt chính.
 Nên giữ và phát triển
 await page.agent.semanticTree();
@@ -405,7 +405,7 @@ persona() và browserProfile() nên thuộc identity/profile extension.
 reason() và planning() không nên nằm trong low-level browser package. Đây là trách nhiệm của AI orchestration package riêng.
 8. AI Agent Readiness
 Điểm mạnh
-Velora đã có nền móng tốt hơn nhiều browser SDK thông thường:
+Koko đã có nền móng tốt hơn nhiều browser SDK thông thường:
 Semantic tree.
 Markdown.
 Structured data.
@@ -452,7 +452,7 @@ Retry policy.
 Compensation.
 Artifact/output.
 Audit log.
-Không nên để SDK tự “reason” bằng LLM. SDK nên cung cấp deterministic tools; model orchestration nằm ở package @velora/agent.
+Không nên để SDK tự “reason” bằng LLM. SDK nên cung cấp deterministic tools; model orchestration nằm ở package @koko/agent.
 9. API Layering
 Tôi khuyến nghị ba tầng rõ ràng.
 Level 1 – Portable Browser API
@@ -466,11 +466,11 @@ Storage
 Navigation
 Input
 Mục tiêu: quen thuộc với người dùng Playwright và chạy được trên nhiều driver.
-Level 2 – Velora Extensions
-page.velora.semanticTree()
-page.velora.markdown()
-page.velora.forms()
-browser.velora.profile()
+Level 2 – Koko Extensions
+page.koko.semanticTree()
+page.koko.markdown()
+page.koko.forms()
+browser.koko.profile()
 Mục tiêu: expose capability riêng mà không làm ô nhiễm portable surface.
 Level 3 – Agent API
 AgentSession
@@ -482,7 +482,7 @@ MCP adapters
 Mục tiêu: phục vụ AI agent và automation cấp cao.
 Ưu điểm:
 Semver boundary rõ.
-Portable API không bị khóa vào Velora.
+Portable API không bị khóa vào Koko.
 Chrome driver dễ triển khai.
 AI API có thể phát triển nhanh mà không phá browser primitive.
 Documentation dễ phân luồng.
@@ -499,10 +499,10 @@ ProtocolError
 NavigationError
 TargetClosedError
 WebSocketClosedError
-Xem [errors.ts (line 1)](/Users/huydev/Desktop/velora/velora-sdk/src/cdp/errors.ts:1).
+Xem [errors.ts (line 1)](/Users/huydev/Desktop/koko/koko-sdk/src/cdp/errors.ts:1).
 Đây là khởi đầu tốt nhưng quá CDP-centric.
 Error hierarchy đề xuất
-VeloraError
+KokoError
 ├── ConfigurationError
 ├── DriverError
 │   ├── DriverConnectionError
@@ -544,7 +544,7 @@ Timeout được áp riêng theo từng stage, có thể làm tổng thời gian
 Navigation chưa correlate đầy đủ theo frame/loader.
 Có magic delay trong evaluate retry và done waiting.
 close() của một số tầng không đợi WebSocket/process kết thúc thật.
-Launch dùng async process error handler rồi throw tại [launch.ts (line 198)](/Users/huydev/Desktop/velora/velora-sdk/src/browser/launch.ts:198); lỗi kiểu này có thể thoát khỏi promise launch và trở thành uncaught exception.
+Launch dùng async process error handler rồi throw tại [launch.ts (line 198)](/Users/huydev/Desktop/koko/koko-sdk/src/browser/launch.ts:198); lỗi kiểu này có thể thoát khỏi promise launch và trở thành uncaught exception.
 Mô hình đề xuất
 Mọi async operation quan trọng nên nhận:
 interface OperationOptions {
@@ -584,7 +584,7 @@ Capability negotiation.
 State transitions.
 Contract tests
 Một bộ test chạy cho mọi driver:
-driverContract("velora", veloraDriver);
+driverContract("koko", kokoDriver);
 driverContract("chrome", chromeDriver);
 Kiểm tra:
 Navigation.
@@ -596,7 +596,7 @@ Routing.
 Storage.
 Close/cancel.
 Integration
-Velora runtime fixture local.
+Koko runtime fixture local.
 Chrome local.
 WebSocket disconnect.
 Browser crash.
@@ -626,7 +626,7 @@ docs/
 │   └── timeouts-cancellation.md
 ├── drivers/
 │   ├── capabilities.md
-│   ├── velora.md
+│   ├── koko.md
 │   └── chrome.md
 ├── agent/
 │   ├── semantic-tree.md
@@ -661,7 +661,7 @@ Tổng thể	6.4/10
 SDK dùng được cho:
 Internal automation.
 Early adopters.
-Velora-specific crawling/extraction.
+Koko-specific crawling/extraction.
 AI agent prototype.
 Controlled production workloads có wrapper và monitoring.
 Chưa nên tuyên bố:
@@ -700,24 +700,24 @@ Mục tiêu: tách object model khỏi CDP.
 Phạm vi:
 Capability model.
 Browser/Page/Element driver contracts.
-VeloraCdpDriver.
+KokoCdpDriver.
 Fake driver cho unit test.
 Không expose CDPSession trong high-level classes.
 Rủi ro: over-abstraction.
-Kết quả: Velora trở thành một backend thay vì toàn bộ kiến trúc.
+Kết quả: Koko trở thành một backend thay vì toàn bộ kiến trúc.
 Phase 4 – Chrome Driver
 Mục tiêu: chứng minh abstraction portable.
 Phạm vi:
 Connect Chrome qua CDP.
 Chạy portable contract suite.
 Capability matrix.
-Đánh dấu Velora-only features rõ ràng.
+Đánh dấu Koko-only features rõ ràng.
 Rủi ro: CDP differences, locator semantics.
-Kết quả: core API chạy được trên Velora và Chrome.
-Phase 5 – Velora Extensions
+Kết quả: core API chạy được trên Koko và Chrome.
+Phase 5 – Koko Extensions
 Mục tiêu: productize lợi thế riêng.
 Phạm vi:
-page.velora.
+page.koko.
 Semantic snapshot generation.
 Stable element references.
 Schema extraction.
@@ -728,7 +728,7 @@ Kết quả: khác biệt cạnh tranh rõ mà portable API vẫn sạch.
 Phase 6 – AI Agent Layer
 Mục tiêu: hỗ trợ agent theo cách deterministic và audit được.
 Phạm vi:
-@velora/agent.
+@koko/agent.
 Tool schemas.
 MCP adapter.
 Workflow runner.
@@ -741,7 +741,7 @@ Phase 7 – Testing and documentation
 Mục tiêu: biến behavior thành contract.
 Phạm vi:
 Driver contract tests.
-Velora/Chrome integration.
+Koko/Chrome integration.
 Cancellation/crash tests.
 API docs.
 Migration guide.
@@ -760,10 +760,10 @@ Compatibility matrix.
 Release automation.
 Support policy.
 Rủi ro: tuyên bố stability quá sớm.
-Kết quả: SDK 1.0 có portable core, Velora extensions và production lifecycle.
+Kết quả: SDK 1.0 có portable core, Koko extensions và production lifecycle.
 16. Final Verdict
 Điểm mạnh lớn nhất
-Velora không chỉ expose raw DOM automation. Semantic tree, markdown, structured data, forms và backend-node actions tạo một nền tảng thực sự phù hợp với AI agent.
+Koko không chỉ expose raw DOM automation. Semantic tree, markdown, structured data, forms và backend-node actions tạo một nền tảng thực sự phù hợp với AI agent.
 Đây là hướng khác biệt đáng theo đuổi hơn việc clone Playwright toàn bộ.
 Điểm yếu lớn nhất
 Protocol và runtime details đang xuyên qua object model. Vì chưa có Driver Interface, mọi thay đổi backend có thể ảnh hưởng Browser, Page, Locator, navigation, events và profile APIs cùng lúc.
@@ -781,10 +781,10 @@ Không nên clone:
 Toàn bộ test framework.
 Mọi browser-specific edge case.
 Product architecture.
-Những phần làm Velora mất lợi thế semantic/agent.
+Những phần làm Koko mất lợi thế semantic/agent.
 Có nên hỗ trợ Chrome Driver?
 Có.
-Chrome Driver là bài kiểm tra kiến trúc quan trọng hơn là một feature marketing. Nếu portable layer chạy được cả Velora và Chrome, Driver boundary mới thực sự đúng.
+Chrome Driver là bài kiểm tra kiến trúc quan trọng hơn là một feature marketing. Nếu portable layer chạy được cả Koko và Chrome, Driver boundary mới thực sự đúng.
 Có nên tách Driver Interface?
 Có, đây là ưu tiên kiến trúc số một sau lifecycle correctness.
 Nhưng phải dùng capability-based interfaces, không tạo một Driver khổng lồ chứa hàng trăm method.
@@ -792,19 +792,19 @@ Có nên xây AI Layer riêng?
 Có.
 Tách rõ:
 Browser primitive.
-Velora semantic extensions.
+Koko semantic extensions.
 AI workflow/orchestration.
 Browser core phải deterministic. Reasoning, planning, MCP và workflow policy nên nằm ở package riêng.
 Khả năng trở thành browser automation SDK thế hệ mới
-Khả thi cao, nếu Velora không dừng ở “Playwright API trên CDP”.
+Khả thi cao, nếu Koko không dừng ở “Playwright API trên CDP”.
 Công thức phù hợp là:
 Playwright-grade portable ergonomics
 +
-Velora-native semantic runtime
+Koko-native semantic runtime
 +
 Stable agent references
 +
 Capability-based multi-driver architecture
 +
 Separate AI workflow layer
-Nếu thực hiện đúng roadmap, Velora có thể cạnh tranh ở phân khúc browser runtime cho crawling, structured extraction và AI agents—một vùng mà các automation SDK truyền thống chưa tối ưu từ kiến trúc gốc.
+Nếu thực hiện đúng roadmap, Koko có thể cạnh tranh ở phân khúc browser runtime cho crawling, structured extraction và AI agents—một vùng mà các automation SDK truyền thống chưa tối ưu từ kiến trúc gốc.

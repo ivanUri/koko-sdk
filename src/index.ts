@@ -22,15 +22,15 @@ export { Browser } from "./browser/browser.js";
 export type { BrowserConnectOptions } from "./browser/browser.js";
 export { definePersona, personaContextOptions } from "./browser/identity.js";
 export type { BrowserProfileInfo, Persona } from "./browser/identity.js";
-export { launchVelora } from "./browser/launch.js";
-export type { VeloraLaunchOptions, LaunchedVelora } from "./browser/launch.js";
-export { resolveVeloraInstall, defaultVeloraDataRoot, listVeloraInstalls } from "./velora-install.js";
+export { launchKoko } from "./browser/launch.js";
+export type { KokoLaunchOptions, LaunchedKoko } from "./browser/launch.js";
+export { resolveKokoInstall, defaultKokoDataRoot, listKokoInstalls } from "./koko-install.js";
 export type {
-  VeloraInstall,
-  VeloraInstallSource,
-  VeloraInstallPreset,
-  ResolveVeloraInstallOptions,
-} from "./velora-install.js";
+  KokoInstall,
+  KokoInstallSource,
+  KokoInstallPreset,
+  ResolveKokoInstallOptions,
+} from "./koko-install.js";
 export { BrowserContext } from "./browser/context.js";
 export type { BrowserContextOptions, Geolocation, StorageState, StorageStateOrigin } from "./browser/context.js";
 export { Page } from "./browser/page.js";
@@ -70,7 +70,7 @@ export type {
   BoundingBox,
 } from "./browser/locator.js";
 export type { ActionOptions, FillOptions, SelectOptions, SelectOptionValue } from "./browser/actions.js";
-export { VeloraClient, LPClient } from "./browser/lp-client.js";
+export { KokoClient, LPClient } from "./browser/lp-client.js";
 export { toEngineArgs } from "./browser/engine-options.js";
 export type { EngineCommonOptions, LogLevel, LogChannel } from "./browser/engine-options.js";
 export { NodeHandle } from "./browser/node-handle.js";
@@ -123,11 +123,11 @@ export type {
 export { Request, Response } from "./browser/request.js";
 export type { ResourceType, RequestFailure } from "./browser/request.js";
 export {
-  VeloraDriver,
-  VELORA_CAPABILITIES,
+  KokoDriver,
+  KOKO_CAPABILITIES,
   CHROME_CDP_CAPABILITIES,
   ChromeCdpDriver,
-  createVeloraDriver,
+  createKokoDriver,
   createChromeCdpDriver,
 } from "./driver.js";
 export type {
@@ -135,7 +135,7 @@ export type {
   DriverCapabilities,
   PageDriver,
   ElementDriver,
-  VeloraPageDriver,
+  KokoPageDriver,
 } from "./driver.js";
 export { Workflow } from "./workflow.js";
 export type { WorkflowStep, WorkflowStepContext, WorkflowRunOptions, WorkflowStepResult } from "./workflow.js";

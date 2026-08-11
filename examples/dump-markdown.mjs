@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// One-shot `velora fetch` dump — the CLI path, no CDP session.
+// One-shot `koko fetch` dump — the CLI path, no CDP session.
 //
 //   node examples/dump-markdown.mjs https://example.com
 //   node examples/dump-markdown.mjs https://example.com --format html -o page.html
-//   VELORA_PROFILE=my-session node examples/dump-markdown.mjs https://example.com
+//   KOKO_PROFILE=my-session node examples/dump-markdown.mjs https://example.com
 import { dump } from "../dist/index.js";
 
 function parseArgs(argv) {
@@ -13,9 +13,9 @@ function parseArgs(argv) {
     strip: [],
     output: undefined,
     waitSelector: undefined,
-    profile: process.env.VELORA_PROFILE,
-    install: process.env.VELORA_INSTALL,
-    dataRoot: process.env.VELORA_ROOT,
+    profile: process.env.KOKO_PROFILE,
+    install: process.env.KOKO_INSTALL,
+    dataRoot: process.env.KOKO_ROOT,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -57,7 +57,7 @@ const result = await dump(args.url, {
 // A non-zero exit can still carry a complete document: the engine may crash
 // during teardown after the serializer has already written it.
 if (result.exitCode !== 0) {
-  console.error(`[warn] velora exited ${result.exitCode}${result.signal ? ` (${result.signal})` : ""} after dumping`);
+  console.error(`[warn] koko exited ${result.exitCode}${result.signal ? ` (${result.signal})` : ""} after dumping`);
 }
 if (args.output) console.log(`wrote ${result.body.length} bytes to ${args.output}`);
 else process.stdout.write(result.body);

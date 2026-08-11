@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   CHROME_CDP_CAPABILITIES,
   ChromeCdpDriver,
-  VeloraDriver,
-  VELORA_CAPABILITIES,
+  KokoDriver,
+  KOKO_CAPABILITIES,
 } from "../src/driver.js";
-import { VeloraClient } from "../src/browser/lp-client.js";
+import { KokoClient } from "../src/browser/lp-client.js";
 import { NodeHandle } from "../src/browser/node-handle.js";
 import { StaleElementError } from "../src/cdp/errors.js";
 import { Workflow } from "../src/workflow.js";
@@ -15,10 +15,10 @@ import { definePersona } from "../src/browser/identity.js";
 import { Page } from "../src/browser/page.js";
 
 describe("driver capabilities", () => {
-  it("reports Velora extensions without claiming isolated contexts", () => {
-    const driver = new VeloraDriver();
-    expect(driver.name).toBe("velora");
-    expect(driver.capabilities()).toBe(VELORA_CAPABILITIES);
+  it("reports Koko extensions without claiming isolated contexts", () => {
+    const driver = new KokoDriver();
+    expect(driver.name).toBe("koko");
+    expect(driver.capabilities()).toBe(KOKO_CAPABILITIES);
     expect(driver.capabilities()).toMatchObject({
       navigation: true,
       semanticTree: true,
@@ -26,7 +26,7 @@ describe("driver capabilities", () => {
     });
   });
 
-  it("does not advertise Velora semantic domains for Chrome CDP", () => {
+  it("does not advertise Koko semantic domains for Chrome CDP", () => {
     const driver = new ChromeCdpDriver();
     expect(driver.name).toBe("chrome-cdp");
     expect(driver.capabilities()).toBe(CHROME_CDP_CAPABILITIES);
@@ -38,7 +38,7 @@ describe("driver capabilities", () => {
   });
 });
 
-describe("Velora agent snapshot", () => {
+describe("Koko agent snapshot", () => {
   it("captures selected semantic resources with a document generation", async () => {
     const page = {
       generation: 7,
@@ -52,12 +52,12 @@ describe("Velora agent snapshot", () => {
     };
     const session = {
       send: vi.fn((method: string) => {
-        if (method === "Velora.getSemanticTree") return Promise.resolve({ semanticTree: { role: "document" } });
-        if (method === "Velora.detectForms") return Promise.resolve({ forms: [] });
+        if (method === "Koko.getSemanticTree") return Promise.resolve({ semanticTree: { role: "document" } });
+        if (method === "Koko.detectForms") return Promise.resolve({ forms: [] });
         return Promise.resolve({});
       }),
     };
-    const client = new VeloraClient(page as never, session as never);
+    const client = new KokoClient(page as never, session as never);
 
     const snapshot = await client.snapshot({
       include: ["semanticTree", "forms", "links"],
@@ -77,7 +77,7 @@ describe("Velora agent snapshot", () => {
         { url: "https://other.test/b", text: "B", rel: ["nofollow"], internal: false },
       ]),
     };
-    const client = new VeloraClient(page as never, { send: vi.fn() } as never);
+    const client = new KokoClient(page as never, { send: vi.fn() } as never);
 
     await expect(client.links({ details: true, externalOnly: true })).resolves.toEqual([
       { url: "https://other.test/b", text: "B", rel: ["nofollow"], internal: false },
@@ -105,8 +105,8 @@ describe("backend node generations", () => {
 });
 
 describe("agent tools and workflow", () => {
-  it("exposes deterministic tool schemas from VeloraClient", () => {
-    const client = new VeloraClient({ generation: 1 } as never, { send: vi.fn() } as never);
+  it("exposes deterministic tool schemas from KokoClient", () => {
+    const client = new KokoClient({ generation: 1 } as never, { send: vi.fn() } as never);
     expect(client.tools().map((tool) => tool.name)).toEqual([
       "semanticTree",
       "markdown",
@@ -118,7 +118,7 @@ describe("agent tools and workflow", () => {
   it("ships a runtime AgentSession with validated selector actions", async () => {
     const click = vi.fn().mockResolvedValue(undefined);
     const page = {
-      velora: { tools: () => [], snapshot: vi.fn() },
+      koko: { tools: () => [], snapshot: vi.fn() },
       locator: vi.fn(() => ({ click })),
       node: vi.fn(),
       press: vi.fn(),
@@ -134,7 +134,7 @@ describe("agent tools and workflow", () => {
 
   it("rejects unsupported agent actions before touching the page", async () => {
     const page = {
-      velora: { tools: () => [], snapshot: vi.fn() },
+      koko: { tools: () => [], snapshot: vi.fn() },
       locator: vi.fn(),
       node: vi.fn(),
       press: vi.fn(),
@@ -161,7 +161,7 @@ describe("agent tools and workflow", () => {
     const click = vi.fn().mockResolvedValue("clicked");
     const audit = vi.fn();
     const page = {
-      velora: { tools: () => [], snapshot: vi.fn().mockResolvedValue({ generation: 1 }) },
+      koko: { tools: () => [], snapshot: vi.fn().mockResolvedValue({ generation: 1 }) },
       locator: vi.fn(() => ({ click })),
       node: vi.fn(),
       press: vi.fn(),
@@ -195,7 +195,7 @@ describe("agent tools and workflow", () => {
   });
 });
 
-describe("Velora exclusive APIs", () => {
+describe("Koko exclusive APIs", () => {
   it("validates structured extraction results against the declared schema", async () => {
     const session = { send: vi.fn() };
     const page = new Page(session as never);

@@ -1,11 +1,11 @@
-import type { VeloraClient } from "./lp-client.js";
+import type { KokoClient } from "./lp-client.js";
 import type { GotoWaitOptions } from "./waiter.js";
 import { StaleElementError } from "../cdp/errors.js";
 
 /** Minimal page surface to avoid import cycles. */
 export interface NodeHandlePage {
   init(): Promise<void>;
-  readonly agent: VeloraClient;
+  readonly agent: KokoClient;
   readonly generation?: number;
   waitForNavigation(options?: GotoWaitOptions): Promise<void>;
 }
@@ -18,7 +18,7 @@ export interface NodePressOptions extends NodeActionOptions {
 }
 
 /**
- * Stable backend-node handle for Velora agent actions.
+ * Stable backend-node handle for Koko agent actions.
  * Unlike CSS locators, backendNodeId survives semantic tree / interactive element scans.
  */
 export class NodeHandle {

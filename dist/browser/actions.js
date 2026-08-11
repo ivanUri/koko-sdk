@@ -32,7 +32,7 @@ function actionabilitySnippet(checks) {
  *
  * Polls with one discrete `Runtime.evaluate` round-trip per attempt, sleeping on the Node side
  * between attempts (same pattern as `waiter.ts`'s `pollExpression`) — NOT a single evaluate call
- * that sleeps internally via an in-page `setTimeout`. Velora treats a script evaluation as "host
+ * that sleeps internally via an in-page `setTimeout`. Koko treats a script evaluation as "host
  * nested" for its entire duration (see `EventLoop.zig`'s `isHostNested`), which blocks other
  * pending macrotasks — including a page's own already-scheduled timers — from running until that
  * evaluate returns. An in-page poll loop would therefore never observe outside state changes (e.g.

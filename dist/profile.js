@@ -10,7 +10,7 @@ export const FINGERPRINT_FILE = "fingerprint.json";
  * Mirrors `ProfileManager.defaultFingerprintForName`.
  */
 export function defaultFingerprintForName(profileName) {
-    return profileName === "Default" ? "velora" : profileName;
+    return profileName === "Default" ? "koko" : profileName;
 }
 /** Installed fingerprint folder: `<dataRoot>/browser/fingerprints/<id>/`. */
 export function fingerprintDir(dataRoot, fingerprintId) {
@@ -40,13 +40,13 @@ export function profilePreferencesPath(userDataDir, profileName) {
 export function profileFingerprintDir(userDataDir, profileName) {
     return join(profileDir(userDataDir, profileName), FINGERPRINT_DIR);
 }
-/** Portable `.velora-profile` bundle directory. */
+/** Portable `.koko-profile` bundle directory. */
 export function bundleDir(name, userDataDir = defaultUserDataDir()) {
-    return join(userDataDir, `${name}.velora-profile`);
+    return join(userDataDir, `${name}.koko-profile`);
 }
 /**
  * Fingerprint folder inside an exported bundle.
- * `velora profile export` writes `<bundle>/fingerprint/fingerprint.json`;
+ * `koko profile export` writes `<bundle>/fingerprint/fingerprint.json`;
  * flat bundles (fingerprint.json at the root) are accepted too.
  */
 export function bundleFingerprintDir(bundlePath) {
@@ -65,7 +65,7 @@ export function readPreferences(userDataDir, profileName) {
     return prefs.version === 3 && prefs.fingerprint ? prefs : null;
 }
 /**
- * Resolve the folder to pass to `velora --fingerprint-folder`.
+ * Resolve the folder to pass to `koko --fingerprint-folder`.
  *
  * Order: explicit folder → bundle → profile-embedded → installed fingerprint
  * (explicit id, else the id recorded in the profile's Preferences.json).

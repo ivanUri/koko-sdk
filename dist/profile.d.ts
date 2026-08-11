@@ -6,7 +6,7 @@
 export interface PreferencesV3 {
     version: 3;
     name: string;
-    /** Fingerprint folder id, e.g. `velora`, `chrome-macos-sonoma`. */
+    /** Fingerprint folder id, e.g. `koko`, `chrome-macos-sonoma`. */
     fingerprint: string;
     created?: string;
 }
@@ -29,11 +29,11 @@ export declare function profileDir(userDataDir: string, profileName: string): st
 export declare function profilePreferencesPath(userDataDir: string, profileName: string): string;
 /** Fingerprint embedded in a profile instance (`<profile>/fingerprint/`). */
 export declare function profileFingerprintDir(userDataDir: string, profileName: string): string;
-/** Portable `.velora-profile` bundle directory. */
+/** Portable `.koko-profile` bundle directory. */
 export declare function bundleDir(name: string, userDataDir?: string): string;
 /**
  * Fingerprint folder inside an exported bundle.
- * `velora profile export` writes `<bundle>/fingerprint/fingerprint.json`;
+ * `koko profile export` writes `<bundle>/fingerprint/fingerprint.json`;
  * flat bundles (fingerprint.json at the root) are accepted too.
  */
 export declare function bundleFingerprintDir(bundlePath: string): string;
@@ -45,13 +45,13 @@ export interface ResolveFingerprintOptions {
     userDataDir?: string;
     /** Explicit fingerprint folder (`--fingerprint-folder`). */
     fingerprintFolder?: string;
-    /** Portable `.velora-profile` bundle directory. */
+    /** Portable `.koko-profile` bundle directory. */
     profileBundle?: string;
     /** Installed fingerprint id under `browser/fingerprints/`. */
     fingerprint?: string;
 }
 /**
- * Resolve the folder to pass to `velora --fingerprint-folder`.
+ * Resolve the folder to pass to `koko --fingerprint-folder`.
  *
  * Order: explicit folder → bundle → profile-embedded → installed fingerprint
  * (explicit id, else the id recorded in the profile's Preferences.json).

@@ -68,7 +68,7 @@ export class NetworkTracker {
     return this.ensureEnabled();
   }
 
-  /** Lazily enable Network — avoids velora SIGTRAP on simple multi-page goto. */
+  /** Lazily enable Network — avoids koko SIGTRAP on simple multi-page goto. */
   async ensureEnabled(): Promise<void> {
     if (this.enabled) return;
     if (this.enabling) return this.enabling;

@@ -1,6 +1,6 @@
 import { type EngineCommonOptions } from "./browser/engine-options.js";
 /**
- * `--dump` formats accepted by `velora fetch`.
+ * `--dump` formats accepted by `koko fetch`.
  *
  * Only `html` and `markdown` actually render on the CLI path. The engine
  * accepts the `semantic_tree` variants but emits nothing for them — reach
@@ -41,15 +41,15 @@ export interface DumpOptions extends EngineCommonOptions {
      * waiting, this aborts the page — use it for endless scripts.
      */
     terminateMs?: number;
-    /** Portable `.velora-profile` bundle directory. */
+    /** Portable `.koko-profile` bundle directory. */
     profileBundle?: string;
     /** Installed fingerprint id under `browser/fingerprints/`. */
     fingerprint?: string;
-    /** Path to velora binary. */
+    /** Path to koko binary. */
     binary?: string;
     /** Engine install preset or path. */
     install?: string;
-    /** Engine install root (VELORA_ROOT / VELORA_DATA). */
+    /** Engine install root (KOKO_ROOT / KOKO_DATA). */
     dataRoot?: string;
     /** Write the dump to this path. */
     output?: string;
@@ -70,7 +70,7 @@ export interface DumpResult {
     args: string[];
 }
 /**
- * One-shot document dump via `velora fetch`.
+ * One-shot document dump via `koko fetch`.
  *
  * Covers the parts of the engine that the CDP path does not expose: markdown
  * and semantic-tree rendering, `--strip-mode`, iframe inlining, script/selector

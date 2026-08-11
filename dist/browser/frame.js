@@ -16,7 +16,7 @@ export class Frame {
         return this.info.url;
     }
     async evaluate(expressionOrFunction, options = {}) {
-        const world = await this.session.send("Page.createIsolatedWorld", { frameId: this.id, worldName: "velora-sdk", grantUniveralAccess: false }, options.timeout);
+        const world = await this.session.send("Page.createIsolatedWorld", { frameId: this.id, worldName: "koko-sdk", grantUniveralAccess: false }, options.timeout);
         const expression = typeof expressionOrFunction === "function"
             ? `(${expressionOrFunction.toString()})()`
             : expressionOrFunction;

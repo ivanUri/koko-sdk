@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * Production-style Wikipedia crawl using velora-sdk createCrawlWorker.
+ * Production-style Wikipedia crawl using koko-sdk createCrawlWorker.
  *
  * Usage:
  *   npm run example:crawl
- *   VELORA_CDP=http://127.0.0.1:9222 node examples/crawl-wikipedia.mjs --limit 20 --concurrency 4
+ *   KOKO_CDP=http://127.0.0.1:9222 node examples/crawl-wikipedia.mjs --limit 20 --concurrency 4
  *   node examples/crawl-wikipedia.mjs --launch --profile chrome-local-huys-macbook-pro
  */
 
-import { Browser, createCrawlWorker, defaultVeloraDataRoot } from "../dist/index.js";
+import { Browser, createCrawlWorker, defaultKokoDataRoot } from "../dist/index.js";
 
 const TTFX = `(() => {
   const el = document.querySelector("#firstHeading") || document.querySelector("h1");
@@ -27,9 +27,9 @@ const DEFAULT_TITLES = ["Earth", "Moon", "Mars", "Jupiter", "Saturn", "Venus", "
 function parseArgs(argv) {
   const out = {
     launch: false,
-    profile: process.env.VELORA_PROFILE ?? "chrome-local-huys-macbook-pro",
-    fingerprint: process.env.VELORA_FINGERPRINT ?? undefined,
-    endpoint: process.env.VELORA_CDP ?? null,
+    profile: process.env.KOKO_PROFILE ?? "chrome-local-huys-macbook-pro",
+    fingerprint: process.env.KOKO_FINGERPRINT ?? undefined,
+    endpoint: process.env.KOKO_CDP ?? null,
     limit: 8,
     concurrency: 2,
     lang: "en",
@@ -54,7 +54,7 @@ function parseArgs(argv) {
 
 async function fetchTitles(lang, limit) {
   const api = `https://${lang}.wikipedia.org/w/api.php?action=query&list=random&rnnamespace=0&rnlimit=${limit}&format=json&origin=*`;
-  const res = await fetch(api, { headers: { "user-agent": "velora-sdk-crawl-example/1.0" } });
+  const res = await fetch(api, { headers: { "user-agent": "koko-sdk-crawl-example/1.0" } });
   const data = await res.json();
   const titles = (data?.query?.random ?? []).map((r) => r.title);
   return titles.length ? titles : DEFAULT_TITLES.slice(0, limit);
@@ -105,7 +105,7 @@ async function main() {
         `launched ${endpoint} source=${launched.installSource} data=${launched.dataRoot}`,
       );
     } else {
-      throw new Error("set VELORA_CDP or pass --launch");
+      throw new Error("set KOKO_CDP or pass --launch");
     }
   }
 

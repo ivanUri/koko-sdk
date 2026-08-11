@@ -25,7 +25,7 @@ export interface BrowserContextOptions {
   viewport?: ViewportSize;
   /**
    * Overrides `navigator.userAgent` and the HTTP User-Agent header (CDP `Network.setUserAgentOverride`).
-   * Velora accepts the call but SILENTLY skips the override if `userAgent` contains "Mozilla" and the
+   * Koko accepts the call but SILENTLY skips the override if `userAgent` contains "Mozilla" and the
    * active profile doesn't allow it — for full antidetect identity spoofing use `fingerprint`/`profile`
    * on `Browser.launch()` instead of a manual override here.
    */
@@ -47,7 +47,7 @@ export interface BrowserContextOptions {
 }
 
 /**
- * NOTE on isolation: Velora currently supports a single CDP browser context per `velora serve`
+ * NOTE on isolation: Koko currently supports a single CDP browser context per `koko serve`
  * connection (`Target.createBrowserContext` errors if called twice). `userAgent`/`locale`/`timezoneId`/
  * `geolocation`/`permissions`/`extraHTTPHeaders` are applied per-page but the underlying engine state
  * is connection-wide — multiple `browser.newContext()` calls on the SAME `Browser` are NOT isolated

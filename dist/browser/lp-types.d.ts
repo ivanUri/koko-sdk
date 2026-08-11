@@ -1,4 +1,4 @@
-/** Velora LP CDP domain types — AI/agent-oriented extraction and backend-node actions. */
+/** Koko LP CDP domain types — AI/agent-oriented extraction and backend-node actions. */
 export interface SemanticTreeOptions {
     format?: "json" | "text";
     prune?: boolean;
@@ -141,7 +141,7 @@ export interface ScrollOptions {
     timeout?: number;
 }
 /**
- * Engine-side selector action (`Velora.clickSelector` and friends).
+ * Engine-side selector action (`Koko.clickSelector` and friends).
  *
  * `selectorTimeout` bounds the engine's actionability polling; `timeout`
  * bounds the CDP round-trip and should be the larger of the two.

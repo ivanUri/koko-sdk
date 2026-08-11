@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { Browser } from "./browser/browser.js";
 import type { ExtractResult } from "./browser/page.js";
-import { launchVelora, type VeloraLaunchOptions } from "./browser/launch.js";
+import { launchKoko, type KokoLaunchOptions } from "./browser/launch.js";
 import type { LogLevel } from "./browser/engine-options.js";
 import type { WaitUntil } from "./browser/waiter.js";
 
@@ -10,7 +10,7 @@ export type FetchFormat = "html" | "md" | "json";
 export interface FetchOptions {
   /** Output format (default: html). */
   format?: FetchFormat;
-  /** Start velora automatically (default: true). */
+  /** Start koko automatically (default: true). */
   launch?: boolean;
   /** CDP endpoint when launch is false. */
   endpoint?: string;
@@ -19,13 +19,13 @@ export interface FetchOptions {
   logger?: boolean;
   /** Write result to this file path. */
   output?: string;
-  /** Passed to `launchVelora` when `launch` is true. */
+  /** Passed to `launchKoko` when `launch` is true. */
   profile?: string;
   profilePool?: string[];
   userDataDir?: string;
   /** Self-contained fingerprint folder (`--fingerprint-folder`). */
   fingerprintFolder?: string;
-  /** Portable `.velora-profile` bundle directory. */
+  /** Portable `.koko-profile` bundle directory. */
   profileBundle?: string;
   /** Installed fingerprint id under `browser/fingerprints/`. */
   fingerprint?: string;
@@ -53,11 +53,11 @@ export interface FetchResult {
 export async function fetch(url: string, options: FetchOptions = {}): Promise<FetchResult> {
   const format = options.format ?? "html";
   const launch = options.launch !== false;
-  const endpoint = options.endpoint ?? process.env.VELORA_CDP ?? "http://127.0.0.1:9222";
+  const endpoint = options.endpoint ?? process.env.KOKO_CDP ?? "http://127.0.0.1:9222";
   const waitUntil = options.waitUntil ?? "domcontentloaded";
   const timeout = options.timeout ?? 30_000;
 
-  const launchOpts: VeloraLaunchOptions = {
+  const launchOpts: KokoLaunchOptions = {
     logger: options.logger,
     profile: options.profile,
     profilePool: options.profilePool,
@@ -73,7 +73,7 @@ export async function fetch(url: string, options: FetchOptions = {}): Promise<Fe
     repoRoot: options.repoRoot,
     logLevel: options.logLevel,
   };
-  const launched = launch ? await launchVelora(launchOpts) : null;
+  const launched = launch ? await launchKoko(launchOpts) : null;
 
   try {
     const browser = launched?.browser ?? await Browser.connect(endpoint, { logger: options.logger });

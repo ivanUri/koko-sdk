@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { Browser } from "./browser.js";
 import { cleanupHydratedProfile, flushRemoteSession, hydrateRemoteProfile, } from "../profile-api.js";
 import { FINGERPRINT_FILE, fingerprintDir, resolveFingerprintFolder, } from "../profile.js";
-import { resolveVeloraInstall } from "../velora-install.js";
+import { resolveKokoInstall } from "../koko-install.js";
 import { toEngineArgs } from "./engine-options.js";
 import { delay } from "../utils/timeout.js";
 import { ProtocolError } from "../cdp/errors.js";
@@ -34,7 +34,7 @@ export async function waitForCdp(endpoint, proc, timeoutMs) {
     let spawnError;
     const pollEndpoint = async () => {
         const started = Date.now();
-        const exited = () => new ProtocolError(`velora exited before CDP was ready (code ${proc.exitCode}). `
+        const exited = () => new ProtocolError(`koko exited before CDP was ready (code ${proc.exitCode}). `
             + `Re-run with stdio: "inherit" to see why.`);
         while (Date.now() - started < timeoutMs) {
             if (spawnError)
@@ -58,7 +58,7 @@ export async function waitForCdp(endpoint, proc, timeoutMs) {
     let onSpawnError;
     const spawnFailure = new Promise((_, reject) => {
         onSpawnError = (error) => {
-            spawnError = new ProtocolError(`failed to spawn velora: ${error.message}`, {
+            spawnError = new ProtocolError(`failed to spawn koko: ${error.message}`, {
                 payload: error,
             });
             reject(spawnError);
@@ -93,8 +93,8 @@ export async function terminateChildProcess(proc, timeoutMs = 2_000) {
     proc.kill("SIGKILL");
     await waitForExit();
 }
-export async function launchVelora(options = {}) {
-    const install = resolveVeloraInstall(options);
+export async function launchKoko(options = {}) {
+    const install = resolveKokoInstall(options);
     const { binary, dataRoot } = install;
     const host = options.host ?? "127.0.0.1";
     const port = options.port ?? await getFreePort();
@@ -103,13 +103,13 @@ export async function launchVelora(options = {}) {
     let userDataDir = options.userDataDir;
     let fingerprintFolder;
     const profileId = options.profileId;
-    const veloraApi = options.veloraApi ?? (profileId ? process.env.VELORA_API_URL : undefined);
-    const apiKey = options.apiKey ?? process.env.VELORA_API_KEY;
+    const kokoApi = options.kokoApi ?? (profileId ? process.env.KOKO_API_URL : undefined);
+    const apiKey = options.apiKey ?? process.env.KOKO_API_KEY;
     if (profileId) {
-        if (!veloraApi) {
-            throw new ProtocolError("profileId requires veloraApi (or VELORA_API_URL)");
+        if (!kokoApi) {
+            throw new ProtocolError("profileId requires kokoApi (or KOKO_API_URL)");
         }
-        hydrated = await hydrateRemoteProfile({ veloraApi, profileId, apiKey });
+        hydrated = await hydrateRemoteProfile({ kokoApi, profileId, apiKey });
         profile = profileId;
         userDataDir = hydrated.userDataDir;
         fingerprintFolder = hydrated.fingerprintDir;
@@ -124,10 +124,10 @@ export async function launchVelora(options = {}) {
             fingerprint: options.fingerprint,
         });
         // No profile and nothing to resolve from: fall back to the engine's own
-        // built-in identity so a bare launchVelora() works out of the box.
+        // built-in identity so a bare launchKoko() works out of the box.
         if (!fingerprintFolder && !profile) {
             profile = "Default";
-            const builtin = fingerprintDir(dataRoot, "velora");
+            const builtin = fingerprintDir(dataRoot, "koko");
             if (!existsSync(join(builtin, FINGERPRINT_FILE))) {
                 throw new ProtocolError(`Built-in fingerprint not found: ${join(builtin, FINGERPRINT_FILE)}. `
                     + "Pass fingerprint, fingerprintFolder, or profileBundle.");
@@ -162,13 +162,13 @@ export async function launchVelora(options = {}) {
         stdio: options.stdio ?? "ignore",
         env: {
             ...process.env,
-            VELORA_ROOT: dataRoot,
-            VELORA_DATA: dataRoot,
+            KOKO_ROOT: dataRoot,
+            KOKO_DATA: dataRoot,
         },
     });
     const endpoint = `http://${host}:${port}`;
     await waitForCdp(endpoint, proc, options.launchTimeout ?? 15_000);
-    // Launched browsers create targets explicitly; auto-attach is unstable on velora 1.0.x.
+    // Launched browsers create targets explicitly; auto-attach is unstable on koko 1.0.x.
     const browser = await Browser.connect(endpoint, {
         ...options,
         enableTargetTracking: options.enableTargetTracking ?? false,
@@ -190,7 +190,7 @@ export async function launchVelora(options = {}) {
         profile,
         fingerprintFolder,
         profileId: profileId ?? undefined,
-        veloraApi: veloraApi ?? undefined,
+        kokoApi: kokoApi ?? undefined,
         hydratedWorkDir: hydrated?.workDir,
         binary,
         dataRoot,
@@ -203,10 +203,10 @@ export async function launchVelora(options = {}) {
             closePromise = (async () => {
                 await browser.close().catch(() => undefined);
                 await terminateChildProcess(proc).catch(() => undefined);
-                if (hydrated && veloraApi) {
+                if (hydrated && kokoApi) {
                     try {
                         await flushRemoteSession({
-                            veloraApi,
+                            kokoApi,
                             apiKey,
                             profileId: hydrated.profileId,
                             profileDir: hydrated.profileDir,

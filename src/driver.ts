@@ -1,6 +1,6 @@
 import { Browser } from "./browser/browser.js";
 import type { BrowserConnectOptions } from "./browser/browser.js";
-import { launchVelora, type LaunchedVelora, type VeloraLaunchOptions } from "./browser/launch.js";
+import { launchKoko, type LaunchedKoko, type KokoLaunchOptions } from "./browser/launch.js";
 import type { Page } from "./browser/page.js";
 import type { LocatorQuery } from "./browser/locator-query.js";
 import type { ActionOptions } from "./browser/actions.js";
@@ -27,7 +27,7 @@ export interface BrowserDriver {
   readonly name: string;
   capabilities(): DriverCapabilities;
   connect(endpoint: string, options?: BrowserConnectOptions): Promise<Browser>;
-  launch?(options?: unknown): Promise<LaunchedVelora>;
+  launch?(options?: unknown): Promise<LaunchedKoko>;
 }
 
 export interface PageDriver {
@@ -42,11 +42,11 @@ export interface ElementDriver {
   fill(element: unknown, value: string, options?: ActionOptions): Promise<void>;
 }
 
-export interface VeloraPageDriver extends PageDriver {
+export interface KokoPageDriver extends PageDriver {
   readonly page: Page;
 }
 
-export const VELORA_CAPABILITIES: DriverCapabilities = Object.freeze({
+export const KOKO_CAPABILITIES: DriverCapabilities = Object.freeze({
   navigation: true,
   evaluation: true,
   locators: true,
@@ -81,25 +81,25 @@ export const CHROME_CDP_CAPABILITIES: DriverCapabilities = Object.freeze({
  * it possible to add Chrome or remote implementations without changing the
  * Browser/Context/Page object model.
  */
-export class VeloraDriver implements BrowserDriver {
-  readonly name = "velora";
+export class KokoDriver implements BrowserDriver {
+  readonly name = "koko";
 
   capabilities(): DriverCapabilities {
-    return VELORA_CAPABILITIES;
+    return KOKO_CAPABILITIES;
   }
 
   connect(endpoint: string, options: BrowserConnectOptions = {}): Promise<Browser> {
     return Browser.connect(endpoint, options);
   }
 
-  launch(options: VeloraLaunchOptions = {}): Promise<LaunchedVelora> {
-    return launchVelora(options);
+  launch(options: KokoLaunchOptions = {}): Promise<LaunchedKoko> {
+    return launchKoko(options);
   }
 }
 
 /**
  * Experimental adapter for an already-running Chromium CDP endpoint.
- * Velora extension methods are intentionally reported as unsupported.
+ * Koko extension methods are intentionally reported as unsupported.
  */
 export class ChromeCdpDriver implements BrowserDriver {
   readonly name = "chrome-cdp";
@@ -113,8 +113,8 @@ export class ChromeCdpDriver implements BrowserDriver {
   }
 }
 
-export function createVeloraDriver(): BrowserDriver {
-  return new VeloraDriver();
+export function createKokoDriver(): BrowserDriver {
+  return new KokoDriver();
 }
 
 export function createChromeCdpDriver(): BrowserDriver {

@@ -1,6 +1,6 @@
 import { Browser } from "./browser/browser.js";
-import { launchVelora } from "./browser/launch.js";
-export const VELORA_CAPABILITIES = Object.freeze({
+import { launchKoko } from "./browser/launch.js";
+export const KOKO_CAPABILITIES = Object.freeze({
     navigation: true,
     evaluation: true,
     locators: true,
@@ -33,21 +33,21 @@ export const CHROME_CDP_CAPABILITIES = Object.freeze({
  * it possible to add Chrome or remote implementations without changing the
  * Browser/Context/Page object model.
  */
-export class VeloraDriver {
-    name = "velora";
+export class KokoDriver {
+    name = "koko";
     capabilities() {
-        return VELORA_CAPABILITIES;
+        return KOKO_CAPABILITIES;
     }
     connect(endpoint, options = {}) {
         return Browser.connect(endpoint, options);
     }
     launch(options = {}) {
-        return launchVelora(options);
+        return launchKoko(options);
     }
 }
 /**
  * Experimental adapter for an already-running Chromium CDP endpoint.
- * Velora extension methods are intentionally reported as unsupported.
+ * Koko extension methods are intentionally reported as unsupported.
  */
 export class ChromeCdpDriver {
     name = "chrome-cdp";
@@ -58,8 +58,8 @@ export class ChromeCdpDriver {
         return Browser.connect(endpoint, options);
     }
 }
-export function createVeloraDriver() {
-    return new VeloraDriver();
+export function createKokoDriver() {
+    return new KokoDriver();
 }
 export function createChromeCdpDriver() {
     return new ChromeCdpDriver();

@@ -1,7 +1,7 @@
 {
-  "name": "velora-sdk",
+  "name": "koko-sdk",
   "version": "0.2.0",
-  "description": "TypeScript CDP SDK for Velora — connect, launch, profile, and agent APIs over WebSocket.",
+  "description": "TypeScript CDP SDK for Koko — connect, launch, profile, and agent APIs over WebSocket.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -32,7 +32,7 @@
     }
   },
   "bin": {
-    "velora-fetch": "dist/cli/fetch.js"
+    "koko-fetch": "dist/cli/fetch.js"
   },
   "files": [
     "dist",
@@ -44,14 +44,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ivanUri/velora-sdk.git"
+    "url": "git+https://github.com/ivanUri/koko-sdk.git"
   },
-  "homepage": "https://github.com/ivanUri/velora-sdk#readme",
+  "homepage": "https://kokoio.com",
   "bugs": {
-    "url": "https://github.com/ivanUri/velora-sdk/issues"
+    "url": "https://github.com/ivanUri/koko-sdk/issues"
   },
   "keywords": [
-    "velora",
+    "koko",
     "cdp",
     "chrome-devtools-protocol",
     "browser-automation",

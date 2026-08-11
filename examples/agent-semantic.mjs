@@ -18,14 +18,14 @@ import { Browser, createAgentSession } from "../dist/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "..");
-const VELORA_ROOT = process.env.VELORA_ROOT ?? resolve(PACKAGE_ROOT, "..");
+const KOKO_ROOT = process.env.KOKO_ROOT ?? resolve(PACKAGE_ROOT, "..");
 const FIXTURE = resolve(__dirname, "fixtures/agent-form.html");
 
 function parseArgs(argv) {
   const out = {
-    launch: !process.env.VELORA_CDP,
-    profile: process.env.VELORA_PROFILE ?? "chrome-local-huys-macbook-pro",
-    endpoint: process.env.VELORA_CDP ?? null,
+    launch: !process.env.KOKO_CDP,
+    profile: process.env.KOKO_PROFILE ?? "chrome-local-huys-macbook-pro",
+    endpoint: process.env.KOKO_CDP ?? null,
     dumpTree: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -66,7 +66,7 @@ async function serveFixture() {
 }
 
 /**
- * Agent loop — same decision pattern as MCP velora tools.
+ * Agent loop — same decision pattern as MCP koko tools.
  */
 async function runAgent(page, goalUrl) {
   console.log("\n[agent] goto");
@@ -98,11 +98,11 @@ async function runAgent(page, goalUrl) {
   await agent.perform({
     type: "fill",
     target: field.backendNodeId,
-    input: "velora agent demo",
+    input: "koko agent demo",
   });
 
   const filled = await page.evaluate(`document.getElementById("q")?.value || ""`);
-  if (!filled.includes("velora")) throw new Error(`fill did not apply: ${filled}`);
+  if (!filled.includes("koko")) throw new Error(`fill did not apply: ${filled}`);
 
   console.log("[agent] findElement role=button name=search");
   const buttons = await page.findElement({ role: "button", name: "search" });
@@ -130,13 +130,13 @@ async function main() {
 
   try {
     if (args.launch) {
-      if (!existsSync(resolve(VELORA_ROOT, "zig-out/bin/velora"))) {
-        throw new Error(`zig build first in Velora engine (${VELORA_ROOT})`);
+      if (!existsSync(resolve(KOKO_ROOT, "zig-out/bin/koko"))) {
+        throw new Error(`zig build first in Koko engine (${KOKO_ROOT})`);
       }
       launched = await Browser.launch({
         profile: args.profile,
-        dataRoot: VELORA_ROOT,
-        binary: resolve(VELORA_ROOT, "zig-out/bin/velora"),
+        dataRoot: KOKO_ROOT,
+        binary: resolve(KOKO_ROOT, "zig-out/bin/koko"),
         logLevel: "warn",
       });
       console.log(`launched ${launched.endpoint} profile=${launched.profile ?? args.profile}`);

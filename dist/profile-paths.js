@@ -1,14 +1,14 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-/** Default Velora user-data-dir (Chrome-style profile root). */
+/** Default Koko user-data-dir (Chrome-style profile root). */
 export function defaultUserDataDir() {
     if (process.platform === "darwin") {
-        return join(homedir(), "Library", "Application Support", "velora");
+        return join(homedir(), "Library", "Application Support", "koko");
     }
     if (process.platform === "win32") {
-        return join(process.env.LOCALAPPDATA ?? homedir(), "velora");
+        return join(process.env.LOCALAPPDATA ?? homedir(), "koko");
     }
-    return join(homedir(), ".config", "velora");
+    return join(homedir(), ".config", "koko");
 }
 /** Cookies.json inside a named browser profile folder. */
 export function profileCookiesPath(userDataDir, profileName) {

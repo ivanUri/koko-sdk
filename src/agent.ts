@@ -68,7 +68,7 @@ export interface AgentSessionOptions {
 }
 
 /**
- * Runtime agent facade over deterministic Velora browser primitives.
+ * Runtime agent facade over deterministic Koko browser primitives.
  * It performs no LLM reasoning and validates actions before dispatch.
  */
 export class AgentSession implements AgentCapability {
@@ -82,7 +82,7 @@ export class AgentSession implements AgentCapability {
       forms: "forms",
       links: "links",
     } as const;
-    return this.page.velora.snapshot({
+    return this.page.koko.snapshot({
       include: options.include?.map((name) => includeMap[name]),
       semanticTree: options.maxDepth != null ? { maxDepth: options.maxDepth } : undefined,
       timeout: options.timeout,
@@ -91,7 +91,7 @@ export class AgentSession implements AgentCapability {
 
   tools(): AgentTool[] {
     return [
-      ...this.page.velora.tools(),
+      ...this.page.koko.tools(),
       {
         name: "snapshot",
         description: "Capture a generation-bound semantic page snapshot.",

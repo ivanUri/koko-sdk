@@ -1,14 +1,14 @@
 export interface ProfileBundleCommonOptions {
-    /** Engine install root (VELORA_ROOT). */
+    /** Engine install root (KOKO_ROOT). */
     dataRoot?: string;
     /** Chrome-style session root. */
     userDataDir?: string;
-    /** Path to velora binary. */
+    /** Path to koko binary. */
     binary?: string;
 }
 export interface ExportProfileOptions extends ProfileBundleCommonOptions {
     name: string;
-    /** Output bundle directory (default: `<userDataDir>/<name>.velora-profile`). */
+    /** Output bundle directory (default: `<userDataDir>/<name>.koko-profile`). */
     out?: string;
 }
 export interface ImportProfileOptions extends ProfileBundleCommonOptions {
@@ -20,7 +20,7 @@ export interface CreateProfileOptions extends ProfileBundleCommonOptions {
     name: string;
     /**
      * Installed fingerprint id under `browser/fingerprints/`.
-     * Defaults to `velora` for a profile named `Default`, otherwise the profile name.
+     * Defaults to `koko` for a profile named `Default`, otherwise the profile name.
      */
     fingerprint?: string;
 }
@@ -48,7 +48,7 @@ export interface ProfileListEntry {
 /**
  * List profiles in user-data-dir.
  *
- * `velora profile list` renders fixed-width columns via `std.debug.print`, so
+ * `koko profile list` renders fixed-width columns via `std.debug.print`, so
  * the table arrives on **stderr**, and a name wider than its column shifts the
  * later fields. Rows are therefore anchored on the profile path (always
  * `<user-data-dir>/<name>`) rather than split on whitespace.
@@ -60,7 +60,7 @@ export declare function deleteProfile(options: DeleteProfileOptions): Promise<Pr
 /** Seed a profile's Cookies.json from an exported cookie file. */
 export declare function importCookies(options: ImportCookiesOptions): Promise<ProfileBundleResult>;
 /**
- * Export a profile to a portable `.velora-profile` bundle
+ * Export a profile to a portable `.koko-profile` bundle
  * (`fingerprint/`, `Preferences.json`, `session/`).
  */
 export declare function exportProfile(options: ExportProfileOptions): Promise<ProfileBundleResult>;
