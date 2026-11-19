@@ -1,6 +1,89 @@
-# Koko SDK (`koko-sdk`)
+<div align="center">
 
-TypeScript CDP client for the [Koko](https://github.com/ivanUri/koko) engine. Standalone repo — sibling of the engine checkout:
+# Koko SDK
+
+### TypeScript automation and agent APIs for Koko
+
+**CDP client · Playwright-style APIs · Semantic extraction · AI agent workflows**
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/ivanUri)
+[![Core](https://img.shields.io/badge/Engine-Koko%20Core-F7A41D)](https://github.com/ivanUri/koko-core)
+[![Observatory](https://img.shields.io/badge/Inspect-Koko%20Observatory-5B5BD6)](https://github.com/ivanUri/koko-observatory)
+
+</div>
+
+---
+
+**Koko SDK** is a TypeScript-first client for the [Koko Core](https://github.com/ivanUri/koko-core) browser runtime. It speaks **Chrome DevTools Protocol (CDP)** over WebSocket and provides browser automation, structured extraction, and agent-oriented APIs without relying on Playwright or Puppeteer internals.
+
+> **Status:** Active development. The SDK is not a complete Playwright replacement. Some capabilities depend on the Koko runtime version and the supported CDP/Web API surface.
+
+## Quick start
+
+Start the [Koko Core](https://github.com/ivanUri/koko-core) server first:
+
+```bash
+zig build run -- serve --host 127.0.0.1 --port 9222
+```
+
+In the SDK checkout, install dependencies and build:
+
+```bash
+git clone https://github.com/ivanUri/koko-sdk.git
+cd koko-sdk
+npm install
+npm run build
+```
+
+Connect and navigate:
+
+```ts
+import { Browser } from "koko-sdk";
+
+const browser = await Browser.connect("http://127.0.0.1:9222");
+const page = await browser.newPage();
+
+await page.goto("https://example.com", { waitUntil: "domcontentloaded" });
+console.log(await page.title());
+console.log(await page.content());
+
+await browser.close();
+```
+
+## Why Koko SDK?
+
+- **Familiar automation:** Browser, Page, Context, and Locator interfaces.
+- **Agent-oriented extraction:** Markdown, semantic trees, forms, links, and structured metadata.
+- **Low-level control:** Direct CDP transport, request interception, and runtime-specific methods.
+- **Flexible execution:** Connect to a running Koko instance or launch a locally installed engine.
+- **Explicit boundaries:** Portable browser APIs and Koko-specific capabilities are separated.
+
+## AI-friendly extraction
+
+```ts
+const markdown = await page.markdown();
+const tree = await page.semanticTree({ format: "text", maxDepth: 4 });
+const forms = await page.detectForms();
+const links = await page.links();
+
+console.log({ markdown, tree, forms, links });
+```
+
+## Koko ecosystem
+
+| Project | Role |
+| --- | --- |
+| [Koko Core](https://github.com/ivanUri/koko-core) | Zig + V8 browser runtime and automation infrastructure |
+| [Koko SDK](https://github.com/ivanUri/koko-sdk) | TypeScript automation, extraction, and agent APIs |
+| [Koko Observatory](https://github.com/ivanUri/koko-observatory) | Runtime telemetry, network inspection, and execution visualization |
+
+## Detailed API reference
+
+The sections below document launch profiles, browser context options, storage persistence, agent APIs, CLI tools, CDP integration, testing, and compatibility caveats.
+
+---
+
+TypeScript CDP client for the [Koko](https://github.com/ivanUri/koko-core) engine. Standalone repo — sibling of the engine checkout:
 
 ```
 Desktop/
