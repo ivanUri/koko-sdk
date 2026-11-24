@@ -11,6 +11,7 @@ export const KOKO_CAPABILITIES = Object.freeze({
     semanticTree: true,
     markdown: true,
     structuredExtraction: true,
+    performance: true,
     isolatedContexts: false,
 });
 export const CHROME_CDP_CAPABILITIES = Object.freeze({
@@ -24,6 +25,7 @@ export const CHROME_CDP_CAPABILITIES = Object.freeze({
     semanticTree: false,
     markdown: false,
     structuredExtraction: false,
+    performance: true,
     // The current portable Context implementation does not yet call
     // Target.createBrowserContext even though Chrome supports it.
     isolatedContexts: false,

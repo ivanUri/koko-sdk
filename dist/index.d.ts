@@ -26,7 +26,7 @@ export { Download } from "./browser/download.js";
 export type { DownloadInfo } from "./browser/download.js";
 export { Frame, FrameLocator, PageFrameLocator, DeferredFrameLocator, } from "./browser/frame.js";
 export type { FrameInfo } from "./browser/frame.js";
-export type { EvaluateOptions, ExtractOptions, ExtractSchema, ExtractResult, TypeOptions, PressOptions, SearchOptions, ScreenshotOptions, PdfOptions, ScrollPageOptions, EmulateMediaOptions, ViewportSize, ClickOptions, PageEventMap, NavigationResult, } from "./browser/page.js";
+export type { EvaluateOptions, ExtractOptions, ExtractSchema, ExtractResult, TypeOptions, PressOptions, SearchOptions, ScreenshotOptions, PdfOptions, ScrollPageOptions, EmulateMediaOptions, ViewportSize, ClickOptions, PageEventMap, NavigationResult, PerformanceEntrySnapshot, } from "./browser/page.js";
 export { Locator } from "./browser/locator.js";
 export type { LocatorOptions, GetByRoleOptions, GetByTextOptions, LocatorPressOptions, LocatorFilterOptions, BoundingBox, } from "./browser/locator.js";
 export type { ActionOptions, FillOptions, SelectOptions, SelectOptionValue } from "./browser/actions.js";
@@ -42,7 +42,7 @@ export type { SelectorActionOptions, SemanticTreeOptions, SemanticNode, Markdown
 export { createCrawlWorker } from "./browser/crawl.js";
 export type { CrawlItem, CrawlPageResult, CrawlWorker, CrawlWorkerOptions } from "./browser/crawl.js";
 export { PageWaiter } from "./browser/waiter.js";
-export type { GotoWaitOptions, WaitUntil } from "./browser/waiter.js";
+export type { GotoWaitOptions, LifecycleEvent, WaitUntil } from "./browser/waiter.js";
 export { NetworkTracker } from "./browser/network.js";
 export type { UrlMatch, WaitForNetworkOptions, NetworkEventMap } from "./browser/network.js";
 export { Keyboard, Mouse } from "./browser/input.js";

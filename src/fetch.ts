@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { Browser } from "./browser/browser.js";
 import type { ExtractResult } from "./browser/page.js";
 import { launchKoko, type KokoLaunchOptions } from "./browser/launch.js";
@@ -17,6 +17,8 @@ export interface FetchOptions {
   waitUntil?: WaitUntil;
   timeout?: number;
   logger?: boolean;
+  /** Read and register a script before each document parse. */
+  injectScriptFile?: string;
   /** Write result to this file path. */
   output?: string;
   /** Passed to `launchKoko` when `launch` is true. */
@@ -81,6 +83,9 @@ export async function fetch(url: string, options: FetchOptions = {}): Promise<Fe
 
     try {
       const page = await browser.newPage();
+      if (options.injectScriptFile) {
+        await page.addInitScript(await readFile(options.injectScriptFile, "utf8"));
+      }
       await page.goto(url, { waitUntil, timeout });
 
       let body: string;

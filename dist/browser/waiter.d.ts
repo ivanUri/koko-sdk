@@ -15,6 +15,12 @@ export interface InternalWaitOptions extends GotoWaitOptions {
     /** frameId returned by Page.navigate (main frame). */
     frameId?: string;
 }
+export interface LifecycleEvent {
+    frameId?: string;
+    loaderId?: string;
+    name?: string;
+    timestamp?: number;
+}
 export declare class PageWaiter {
     private readonly session;
     private readonly network;

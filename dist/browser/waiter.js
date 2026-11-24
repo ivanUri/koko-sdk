@@ -28,8 +28,24 @@ export class PageWaiter {
             await this.waitForDomStable(options.domStableMs ?? 500, timeout, options.signal);
             return;
         }
-        // networkidle / done: wait for network quiet after load.
-        await this.network.waitForIdle({ idleMs: options.networkIdleMs, timeout, signal: options.signal });
+        // Koko and Chromium both expose the browser's lifecycle ledger through
+        // Page.lifecycleEvent. Prefer that signal over reconstructing idleness
+        // from Network.* events: it includes queued/intercepted host work and is
+        // the same boundary used by the engine's Runner.
+        if (options.networkIdleMs != null) {
+            // An explicit quiet window is an SDK-level override. Keep the tracker
+            // path for callers that intentionally request a non-Chromium interval.
+            await this.network.waitForIdle({ idleMs: options.networkIdleMs, timeout, signal: options.signal });
+        }
+        else {
+            await this.session.waitFor("Page.lifecycleEvent", {
+                timeout,
+                signal: options.signal,
+                predicate: (event) => event.name === "networkIdle"
+                    && (options.frameId == null || event.frameId == null || event.frameId === options.frameId)
+                    && (options.loaderId == null || event.loaderId == null || event.loaderId === options.loaderId),
+            });
+        }
         if (waitUntil === "done") {
             await this.pollExpression("document.readyState === 'complete'", timeout, "Waiting for document complete");
             await delay(32);

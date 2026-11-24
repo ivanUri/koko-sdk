@@ -351,6 +351,7 @@ const result = await dump("https://example.com", {
   strip: ["js", "css"],
   withFrames: true,
   waitUntil: "done",
+  injectScriptFile: "./observatory-probe.js",
   waitSelector: "#results",
   terminateMs: 30_000,
   profile: "my-session",
@@ -425,10 +426,25 @@ await restoreSessionState(page, state);
 
 ### Koko `waitUntil: "done"`
 
-Default navigation wait (also MCP default): load + network idle + document complete. Stricter than Playwright `networkidle`.
+Default `page.goto()` wait (also MCP default): load + network idle + document complete. Stricter than Playwright `networkidle`. Crawl/fetch helpers default to `domcontentloaded` unless overridden.
 
 ```ts
 await page.goto(url, { waitUntil: "done" });
+```
+
+For Chrome-compatible lifecycle behavior, `networkidle` is backed by the
+`Page.lifecycleEvent` network-idle boundary emitted by Koko and Chromium. Use
+`domcontentloaded` or `load` for fast snapshots; use `domstable` for a quiet
+DOM snapshot and `done` when pending document work must also settle.
+
+The core Performance Timeline is available through the SDK as well:
+
+```ts
+const vitals = await page.performanceEntries();
+const paints = await page.performanceEntries("paint");
+console.log(vitals.filter((entry) =>
+  entry.entryType === "paint" || entry.entryType === "largest-contentful-paint",
+));
 ```
 
 ### Request interception
@@ -465,7 +481,7 @@ await page.evaluate("prompt('Name?')");
 | `context.addCookies()` | `context.addCookies()` | |
 | `context.clearCookies()` | `context.clearCookies()` | |
 | `context.addInitScript()` | `context.addInitScript()` | |
-| `page.goto()` | `page.goto()` | `waitUntil`: none, commit, domcontentloaded, load, networkidle |
+| `page.goto()` | `page.goto()` | `waitUntil`: none, commit, domcontentloaded, load, networkidle, domstable, done |
 | `page.reload()` | `page.reload()` | |
 | `page.goBack()` / `goForward()` | `page.goBack()` / `goForward()` | Via `history.back()` / `forward()` |
 | `page.title()` / `url()` | `page.title()` / `url()` | |
@@ -497,6 +513,7 @@ await page.evaluate("prompt('Name?')");
 | `page.screenshot()` | `page.screenshot()` | PNG/JPEG via CDP |
 | `page.pdf()` | `page.pdf()` | |
 | `page.addInitScript()` | `page.addInitScript()` | |
+| `page.performanceEntries()` | `page.performanceEntries()` | Paint, LCP and Event Timing entries when supported |
 | `page.setViewportSize()` | `page.setViewportSize()` | |
 | `page.search()` | `page.search()` | Koko helper: goto search page + type + Enter |
 | `page.extract()` | `page.extract()` | Koko crawler helper (TTFX + structured extract) |
@@ -534,6 +551,9 @@ await page.evaluate("prompt('Name?')");
 | `page.agent.fillSelector()` | Engine-side fill (survives SPA frame swaps) |
 | `page.agent.selectOptionSelector()` | Engine-side `<select>` option pick |
 | `waitUntil: "done"` | Koko parse + network idle wait |
+| `page.on("lifecycle")` | CDP `Page.lifecycleEvent` stream |
+| `dump({ injectScriptFile })` | Core probe injection before each document parse |
+| `fetch({ injectScriptFile })` / `koko-fetch --inject-script-file` | Register an SDK probe before navigation |
 | `page.route()` / `Route` | Request interception via CDP `Fetch` domain |
 
 ### Not in SDK (use CDP client or MCP)

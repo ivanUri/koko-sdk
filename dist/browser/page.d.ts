@@ -1,5 +1,5 @@
 import type { CDPSession } from "../cdp/session.js";
-import type { GotoWaitOptions } from "./waiter.js";
+import type { GotoWaitOptions, LifecycleEvent } from "./waiter.js";
 import { PageWaiter } from "./waiter.js";
 import { NetworkTracker } from "./network.js";
 import { type RouteHandler, type RoutePattern } from "./route.js";
@@ -83,9 +83,24 @@ export interface NavigationResult {
     frameId?: string;
     loaderId?: string;
 }
+export interface PerformanceEntrySnapshot {
+    name: string;
+    entryType: string;
+    startTime: number;
+    duration: number;
+    value?: number;
+    hadRecentInput?: boolean;
+    interactionId?: number;
+    processingStart?: number;
+    processingEnd?: number;
+    renderTime?: number;
+    loadTime?: number;
+    size?: number;
+}
 export interface PageEventMap {
     console: ConsoleMessage;
     pageerror: PageError;
+    lifecycle: LifecycleEvent;
     request: Request;
     response: Response;
     requestfailed: Request;
@@ -117,6 +132,12 @@ export declare class Page {
     evaluate<T = unknown>(expressionOrFunction: string | Function, options?: EvaluateOptions): Promise<T>;
     /** Single round-trip HTML snapshot (doctype + outerHTML). */
     content(): Promise<string>;
+    /**
+     * Read the engine's Performance Timeline, including Koko's native paint,
+     * LCP and Event Timing entries. Unknown optional fields are omitted by
+     * Chromium and remain undefined for portable callers.
+     */
+    performanceEntries(entryType?: string, options?: EvaluateOptions): Promise<PerformanceEntrySnapshot[]>;
     /**
      * Crawler helper: wait for a TTFX probe then run a structured extract expression.
      * Defaults are site-independent; pass expressions for domain-specific schemas.
@@ -164,7 +185,7 @@ export declare class Page {
     setContent(html: string, options?: {
         timeout?: number;
     }): Promise<void>;
-    waitForLoadState(state?: "domcontentloaded" | "load" | "networkidle" | "domstable", options?: {
+    waitForLoadState(state?: "domcontentloaded" | "load" | "networkidle" | "domstable" | "done", options?: {
         timeout?: number;
     }): Promise<void>;
     waitForTimeout(timeout: number): Promise<void>;

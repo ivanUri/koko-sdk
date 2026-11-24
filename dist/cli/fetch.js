@@ -15,6 +15,7 @@ function parseArgs(argv) {
     let waitUntil = "domcontentloaded";
     let timeout = 30_000;
     let logger = false;
+    let injectScriptFile;
     let profile;
     let userDataDir;
     let fingerprintFolder;
@@ -47,6 +48,9 @@ function parseArgs(argv) {
                 break;
             case "--logger":
                 logger = true;
+                break;
+            case "--inject-script-file":
+                injectScriptFile = next();
                 break;
             case "--launch":
                 launch = true;
@@ -112,7 +116,7 @@ function parseArgs(argv) {
     return {
         url, format, launch, output, endpoint, waitUntil, timeout, logger,
         profile, userDataDir, fingerprintFolder, profileBundle, fingerprint,
-        httpProxy, dataRoot, logLevel,
+        httpProxy, dataRoot, logLevel, injectScriptFile,
     };
 }
 function usage(exitCode) {
@@ -124,6 +128,7 @@ function usage(exitCode) {
   koko-fetch https://example.com --launch --fingerprint chrome-macos-sonoma
   koko-fetch https://example.com --launch --profile-bundle ~/my.koko-profile
   koko-fetch https://example.com --launch --http-proxy http://user:pass@host:8080
+  koko-fetch https://example.com --launch --inject-script-file ./probe.js
 `);
     process.exit(exitCode);
 }
@@ -136,6 +141,7 @@ async function main() {
         waitUntil: args.waitUntil,
         timeout: args.timeout,
         logger: args.logger,
+        injectScriptFile: args.injectScriptFile,
         output: args.output,
         profile: args.profile,
         userDataDir: args.userDataDir,

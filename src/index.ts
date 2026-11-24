@@ -83,6 +83,7 @@ export type {
   ClickOptions,
   PageEventMap,
   NavigationResult,
+  PerformanceEntrySnapshot,
 } from "./browser/page.js";
 export { Locator } from "./browser/locator.js";
 export type {
@@ -140,7 +141,7 @@ export type {
 export { createCrawlWorker } from "./browser/crawl.js";
 export type { CrawlItem, CrawlPageResult, CrawlWorker, CrawlWorkerOptions } from "./browser/crawl.js";
 export { PageWaiter } from "./browser/waiter.js";
-export type { GotoWaitOptions, WaitUntil } from "./browser/waiter.js";
+export type { GotoWaitOptions, LifecycleEvent, WaitUntil } from "./browser/waiter.js";
 export { NetworkTracker } from "./browser/network.js";
 export type { UrlMatch, WaitForNetworkOptions, NetworkEventMap } from "./browser/network.js";
 export { Keyboard, Mouse } from "./browser/input.js";

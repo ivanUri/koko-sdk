@@ -96,13 +96,16 @@ export class Page {
         this.closeHooks.add(hook);
     }
     on(event, handler) {
+        void this.init();
+        if (event === "lifecycle") {
+            return this.session.on("Page.lifecycleEvent", handler);
+        }
         if (event === "request"
             || event === "response"
             || event === "requestfailed"
             || event === "requestfinished") {
             return this.network.on(event, handler);
         }
-        void this.init();
         if (event === "console") {
             return this.session.on("Runtime.consoleAPICalled", (payload) => {
                 handler(consoleMessageFromCdp(payload));
@@ -129,6 +132,10 @@ export class Page {
             this.session.markClosed(new TargetClosedError(event?.reason ?? "Inspector detached", { sessionId: this.session.sessionId }));
         });
         await this.session.send("Page.enable").catch(() => undefined);
+        // Core and Chromium expose networkIdle/networkAlmostIdle through the
+        // lifecycle stream. Enabling it here keeps Page.goto() and consumers of
+        // page.on("lifecycle") on the same source of truth.
+        await this.session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => undefined);
         await this.session.send("Runtime.enable").catch(() => undefined);
         const tree = await this.session.send("Page.getFrameTree").catch(() => undefined);
         const rootFrame = tree?.frameTree?.frame;
@@ -145,7 +152,10 @@ export class Page {
             if (response.request.isNavigationRequest())
                 navigationResponse = response;
         });
-        const waitPromise = this.waiter.waitForNavigation(options);
+        const waitPromise = this.waiter.waitForNavigation({
+            ...options,
+            frameId: this.mainFrameId,
+        });
         waitPromise.catch(() => undefined);
         try {
             let result;
@@ -232,6 +242,30 @@ export class Page {
     async content() {
         await this.init();
         return this.evaluate(CONTENT_EXPR);
+    }
+    /**
+     * Read the engine's Performance Timeline, including Koko's native paint,
+     * LCP and Event Timing entries. Unknown optional fields are omitted by
+     * Chromium and remain undefined for portable callers.
+     */
+    async performanceEntries(entryType, options = {}) {
+        const selector = entryType == null
+            ? "performance.getEntries()"
+            : `performance.getEntriesByType(${JSON.stringify(entryType)})`;
+        return this.evaluate(`(() => ${selector}.map((entry) => ({
+      name: entry.name,
+      entryType: entry.entryType,
+      startTime: entry.startTime,
+      duration: entry.duration,
+      ...(entry.value !== undefined ? { value: entry.value } : {}),
+      ...(entry.hadRecentInput !== undefined ? { hadRecentInput: entry.hadRecentInput } : {}),
+      ...(entry.interactionId !== undefined ? { interactionId: entry.interactionId } : {}),
+      ...(entry.processingStart !== undefined ? { processingStart: entry.processingStart } : {}),
+      ...(entry.processingEnd !== undefined ? { processingEnd: entry.processingEnd } : {}),
+      ...(entry.renderTime !== undefined ? { renderTime: entry.renderTime } : {}),
+      ...(entry.loadTime !== undefined ? { loadTime: entry.loadTime } : {}),
+      ...(entry.size !== undefined ? { size: entry.size } : {}),
+    })))()`, options);
     }
     /**
      * Crawler helper: wait for a TTFX probe then run a structured extract expression.
@@ -392,8 +426,12 @@ export class Page {
         await this.session.send("Page.setDocumentContent", { frameId: this.mainFrameId, html }, options.timeout);
     }
     async waitForLoadState(state = "load", options = {}) {
-        if (state === "networkidle") {
+        if (state === "networkidle" || state === "done") {
             await this.network.waitForIdle({ timeout: options.timeout });
+            if (state === "done") {
+                await this.waitForFunction('document.readyState === "complete"', { timeout: options.timeout });
+                await delay(32);
+            }
             return;
         }
         if (state === "domstable") {

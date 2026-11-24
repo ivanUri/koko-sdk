@@ -12,6 +12,8 @@ export interface FetchOptions {
     waitUntil?: WaitUntil;
     timeout?: number;
     logger?: boolean;
+    /** Read and register a script before each document parse. */
+    injectScriptFile?: string;
     /** Write result to this file path. */
     output?: string;
     /** Passed to `launchKoko` when `launch` is true. */

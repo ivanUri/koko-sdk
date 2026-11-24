@@ -53,6 +53,24 @@ describe("event wait lifecycle", () => {
       undefined,
     );
   });
+
+  it("uses the engine lifecycle ledger for network idle", async () => {
+    const session = {
+      waitFor: vi.fn()
+        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({ name: "networkIdle", frameId: "FRAME-1" }),
+    } as unknown as CDPSession;
+    const network = { waitForIdle: vi.fn() };
+    const waiter = new PageWaiter(session, network as never);
+
+    await waiter.waitForNavigation({ waitUntil: "networkidle", timeout: 1000, frameId: "FRAME-1" });
+
+    expect(network.waitForIdle).not.toHaveBeenCalled();
+    expect(session.waitFor).toHaveBeenLastCalledWith(
+      "Page.lifecycleEvent",
+      expect.objectContaining({ timeout: 1000, predicate: expect.any(Function) }),
+    );
+  });
 });
 
 describe("Page close lifecycle", () => {

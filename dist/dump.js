@@ -48,6 +48,8 @@ export async function dump(url, options = {}) {
         args.push("--wait-script", options.waitScript);
     if (options.waitScriptFile)
         args.push("--wait-script-file", options.waitScriptFile);
+    if (options.injectScriptFile)
+        args.push("--inject-script-file", options.injectScriptFile);
     if (options.clickSelector)
         args.push("--click-selector", options.clickSelector);
     if (options.clickOffsetX != null)

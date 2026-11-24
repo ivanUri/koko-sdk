@@ -20,6 +20,7 @@ export interface DriverCapabilities {
   semanticTree: boolean;
   markdown: boolean;
   structuredExtraction: boolean;
+  performance: boolean;
   isolatedContexts: boolean;
 }
 
@@ -57,6 +58,7 @@ export const KOKO_CAPABILITIES: DriverCapabilities = Object.freeze({
   semanticTree: true,
   markdown: true,
   structuredExtraction: true,
+  performance: true,
   isolatedContexts: false,
 });
 
@@ -71,6 +73,7 @@ export const CHROME_CDP_CAPABILITIES: DriverCapabilities = Object.freeze({
   semanticTree: false,
   markdown: false,
   structuredExtraction: false,
+  performance: true,
   // The current portable Context implementation does not yet call
   // Target.createBrowserContext even though Chrome supports it.
   isolatedContexts: false,

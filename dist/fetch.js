@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { Browser } from "./browser/browser.js";
 import { launchKoko } from "./browser/launch.js";
 export async function fetch(url, options = {}) {
@@ -29,6 +29,9 @@ export async function fetch(url, options = {}) {
         const ownsBrowser = !launched;
         try {
             const page = await browser.newPage();
+            if (options.injectScriptFile) {
+                await page.addInitScript(await readFile(options.injectScriptFile, "utf8"));
+            }
             await page.goto(url, { waitUntil, timeout });
             let body;
             let data;

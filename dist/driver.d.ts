@@ -19,6 +19,7 @@ export interface DriverCapabilities {
     semanticTree: boolean;
     markdown: boolean;
     structuredExtraction: boolean;
+    performance: boolean;
     isolatedContexts: boolean;
 }
 export interface BrowserDriver {

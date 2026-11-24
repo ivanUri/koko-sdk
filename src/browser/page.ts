@@ -1,7 +1,7 @@
 import type { CDPSession } from "../cdp/session.js";
 import { NavigationError, ProtocolError, TargetClosedError } from "../cdp/errors.js";
 import { delay } from "../utils/timeout.js";
-import type { GotoWaitOptions } from "./waiter.js";
+import type { GotoWaitOptions, LifecycleEvent } from "./waiter.js";
 import { PageWaiter } from "./waiter.js";
 import { NetworkTracker } from "./network.js";
 import { RouteRegistry, type RouteHandler, type RoutePattern } from "./route.js";
@@ -120,9 +120,25 @@ export interface NavigationResult {
   loaderId?: string;
 }
 
+export interface PerformanceEntrySnapshot {
+  name: string;
+  entryType: string;
+  startTime: number;
+  duration: number;
+  value?: number;
+  hadRecentInput?: boolean;
+  interactionId?: number;
+  processingStart?: number;
+  processingEnd?: number;
+  renderTime?: number;
+  loadTime?: number;
+  size?: number;
+}
+
 export interface PageEventMap {
   console: ConsoleMessage;
   pageerror: PageError;
+  lifecycle: LifecycleEvent;
   request: Request;
   response: Response;
   requestfailed: Request;
@@ -219,6 +235,12 @@ export class Page {
     event: K,
     handler: (payload: PageEventMap[K]) => void,
   ): () => void {
+    void this.init();
+    if (
+      event === "lifecycle"
+    ) {
+      return this.session.on("Page.lifecycleEvent", handler as never);
+    }
     if (
       event === "request"
       || event === "response"
@@ -227,7 +249,6 @@ export class Page {
     ) {
       return this.network.on(event, handler as never);
     }
-    void this.init();
     if (event === "console") {
       return this.session.on("Runtime.consoleAPICalled", (payload) => {
         handler(consoleMessageFromCdp(payload) as PageEventMap[K]);
@@ -255,6 +276,10 @@ export class Page {
     });
 
     await this.session.send("Page.enable").catch(() => undefined);
+    // Core and Chromium expose networkIdle/networkAlmostIdle through the
+    // lifecycle stream. Enabling it here keeps Page.goto() and consumers of
+    // page.on("lifecycle") on the same source of truth.
+    await this.session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => undefined);
     await this.session.send("Runtime.enable").catch(() => undefined);
 
     const tree = await this.session.send<any>("Page.getFrameTree").catch(() => undefined);
@@ -271,7 +296,10 @@ export class Page {
     const offResponse = this.network.on("response", (response) => {
       if (response.request.isNavigationRequest()) navigationResponse = response;
     });
-    const waitPromise = this.waiter.waitForNavigation(options);
+    const waitPromise = this.waiter.waitForNavigation({
+      ...options,
+      frameId: this.mainFrameId,
+    });
     waitPromise.catch(() => undefined);
     try {
       let result: any;
@@ -354,6 +382,31 @@ export class Page {
   async content(): Promise<string> {
     await this.init();
     return this.evaluate<string>(CONTENT_EXPR);
+  }
+
+  /**
+   * Read the engine's Performance Timeline, including Koko's native paint,
+   * LCP and Event Timing entries. Unknown optional fields are omitted by
+   * Chromium and remain undefined for portable callers.
+   */
+  async performanceEntries(entryType?: string, options: EvaluateOptions = {}): Promise<PerformanceEntrySnapshot[]> {
+    const selector = entryType == null
+      ? "performance.getEntries()"
+      : `performance.getEntriesByType(${JSON.stringify(entryType)})`;
+    return this.evaluate<PerformanceEntrySnapshot[]>(`(() => ${selector}.map((entry) => ({
+      name: entry.name,
+      entryType: entry.entryType,
+      startTime: entry.startTime,
+      duration: entry.duration,
+      ...(entry.value !== undefined ? { value: entry.value } : {}),
+      ...(entry.hadRecentInput !== undefined ? { hadRecentInput: entry.hadRecentInput } : {}),
+      ...(entry.interactionId !== undefined ? { interactionId: entry.interactionId } : {}),
+      ...(entry.processingStart !== undefined ? { processingStart: entry.processingStart } : {}),
+      ...(entry.processingEnd !== undefined ? { processingEnd: entry.processingEnd } : {}),
+      ...(entry.renderTime !== undefined ? { renderTime: entry.renderTime } : {}),
+      ...(entry.loadTime !== undefined ? { loadTime: entry.loadTime } : {}),
+      ...(entry.size !== undefined ? { size: entry.size } : {}),
+    })))()`, options);
   }
 
   /**
@@ -557,11 +610,15 @@ export class Page {
   }
 
   async waitForLoadState(
-    state: "domcontentloaded" | "load" | "networkidle" | "domstable" = "load",
+    state: "domcontentloaded" | "load" | "networkidle" | "domstable" | "done" = "load",
     options: { timeout?: number } = {},
   ): Promise<void> {
-    if (state === "networkidle") {
+    if (state === "networkidle" || state === "done") {
       await this.network.waitForIdle({ timeout: options.timeout });
+      if (state === "done") {
+        await this.waitForFunction('document.readyState === "complete"', { timeout: options.timeout });
+        await delay(32);
+      }
       return;
     }
     if (state === "domstable") {

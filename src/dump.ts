@@ -44,6 +44,8 @@ export interface DumpOptions extends EngineCommonOptions, FetchOnlyEngineOptions
   waitScript?: string;
   /** Like `waitScript`, read from a file (`--wait-script-file`). */
   waitScriptFile?: string;
+  /** JavaScript probe evaluated before every document parse (`--inject-script-file`). */
+  injectScriptFile?: string;
 
   /** Click inside this element after the wait conditions (`--click-selector`). */
   clickSelector?: string;
@@ -131,6 +133,7 @@ export async function dump(url: string, options: DumpOptions = {}): Promise<Dump
   if (options.waitSelector) args.push("--wait-selector", options.waitSelector);
   if (options.waitScript) args.push("--wait-script", options.waitScript);
   if (options.waitScriptFile) args.push("--wait-script-file", options.waitScriptFile);
+  if (options.injectScriptFile) args.push("--inject-script-file", options.injectScriptFile);
 
   if (options.clickSelector) args.push("--click-selector", options.clickSelector);
   if (options.clickOffsetX != null) args.push("--click-offset-x", String(options.clickOffsetX));

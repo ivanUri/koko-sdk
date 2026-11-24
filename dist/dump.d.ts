@@ -30,6 +30,8 @@ export interface DumpOptions extends EngineCommonOptions, FetchOnlyEngineOptions
     waitScript?: string;
     /** Like `waitScript`, read from a file (`--wait-script-file`). */
     waitScriptFile?: string;
+    /** JavaScript probe evaluated before every document parse (`--inject-script-file`). */
+    injectScriptFile?: string;
     /** Click inside this element after the wait conditions (`--click-selector`). */
     clickSelector?: string;
     /** X offset from the element's left edge (`--click-offset-x`, default 28). */
