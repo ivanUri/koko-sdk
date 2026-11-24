@@ -29,6 +29,14 @@
     "./profile": {
       "types": "./dist/profile.d.ts",
       "import": "./dist/profile.js"
+    },
+    "./pool": {
+      "types": "./dist/browser/pool/pool.d.ts",
+      "import": "./dist/browser/pool/pool.js"
+    },
+    "./diagnostics": {
+      "types": "./dist/browser/diagnostics.d.ts",
+      "import": "./dist/browser/diagnostics.js"
     }
   },
   "bin": {

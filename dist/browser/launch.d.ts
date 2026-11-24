@@ -2,8 +2,9 @@ import { type ChildProcess } from "node:child_process";
 import { Browser } from "./browser.js";
 import type { BrowserConnectOptions } from "./browser.js";
 import { type KokoInstallPreset } from "../koko-install.js";
-import { type EngineCommonOptions } from "./engine-options.js";
-export interface KokoLaunchOptions extends BrowserConnectOptions, EngineCommonOptions {
+import { type EngineCommonOptions, type KokoServeOptions } from "./engine-options.js";
+import { type KokoDiagnostics } from "./diagnostics.js";
+export interface KokoLaunchOptions extends BrowserConnectOptions, EngineCommonOptions, KokoServeOptions {
     /** Portable `.koko-profile` bundle directory (uses `fingerprint/` inside). */
     profileBundle?: string;
     /** Installed fingerprint id under `browser/fingerprints/`, e.g. `chrome-macos-sonoma`. */
@@ -59,6 +60,8 @@ export interface LaunchedKoko {
     /** Full argv handed to the engine — useful for reproducing a run. */
     args: string[];
     process: ChildProcess;
+    /** Optional /json/version metadata and startup timing. Additive for older Core builds. */
+    diagnostics?: KokoDiagnostics;
     close(): Promise<void>;
 }
 export declare function waitForCdp(endpoint: string, proc: ChildProcess, timeoutMs: number): Promise<void>;

@@ -20,14 +20,16 @@ export interface EngineCommonOptions {
   /** HTTP cache directory (`--http-cache-dir`). Defaults to the profile's Cache/. */
   httpCacheDir?: string;
 
-  /** Outbound proxy, optionally `user:pass@host:port` (`--http-proxy`). */
+  /** Outbound proxy, optionally `user:pass@host:port` (`--http-proxy`). Mutually exclusive with `proxyFile`. */
   httpProxy?: string;
+  /** File containing one proxy per line; one entry is selected at engine startup (`--proxy-file`). Mutually exclusive with `httpProxy`. */
+  proxyFile?: string;
   /** `Proxy-Authorization: Bearer <token>` (`--proxy-bearer-token`). */
   proxyBearerToken?: string;
 
-  /** Max concurrent HTTP requests (`--http-max-concurrent`, default 10). */
+  /** Max concurrent HTTP requests (`--http-max-concurrent`, Core default 32). */
   httpMaxConcurrent?: number;
-  /** Max open connections per host:port (`--http-max-host-open`, default 4). */
+  /** Max open connections per host:port (`--http-max-host-open`, Core default 16). */
   httpMaxHostOpen?: number;
   /** Connect timeout in ms; 0 disables (`--http-connect-timeout`). */
   httpConnectTimeout?: number;
@@ -38,6 +40,8 @@ export interface EngineCommonOptions {
   /** Max concurrent WebSocket connections (`--ws-max-concurrent`, default 8). */
   wsMaxConcurrent?: number;
 
+  /** Resource loading policy (`--resource-policy`). */
+  resourcePolicy?: ResourcePolicy;
   /** Fetch and obey robots.txt (`--obey-robots`). */
   obeyRobots?: boolean;
   /** Block requests to private/internal IPs after DNS resolution (`--block-private-networks`). */
@@ -92,11 +96,32 @@ export interface EngineCommonOptions {
 
 export type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
 export type LogChannel = "js" | "core" | "network" | "protocol" | "system";
+export type ResourcePolicy = "full" | "no-images" | "no-css" | "text-only" | "defer-images";
+
+/** Options accepted only by the long-running `koko serve` command. */
+export interface KokoServeOptions {
+  /** Native stack reservation per CDP worker in MiB (`--cdp-thread-stack-mb`; Core default 4). */
+  cdpThreadStackMb?: number;
+  /** Recycle a CDP worker after this many browser contexts (`--worker-max-pages`; Core default 1). */
+  workerMaxPages?: number;
+  /** Recycle a CDP worker after this RSS growth in bytes (`--worker-max-rss`; Core default 2 GiB). */
+  workerMaxRss?: number;
+  /** Process-wide current RSS admission budget in bytes (`--resource-max-rss`; 0 disables it). */
+  resourceMaxRss?: number;
+  /** Process-wide current VMS admission budget in bytes (`--resource-max-vms`; 0 disables it). */
+  resourceMaxVms?: number;
+}
+
+/** Options accepted only by the one-shot `koko fetch` command. */
+export interface FetchOnlyEngineOptions {
+  /** UTF-8 file containing fixed request headers (`--extra-headers-file`). */
+  extraHeadersFile?: string;
+}
 
 const LOG_CHANNELS: LogChannel[] = ["js", "core", "network", "protocol", "system"];
 
 /** Render shared engine options as CLI arguments, in a stable order. */
-export function toEngineArgs(options: EngineCommonOptions): string[] {
+export function toEngineArgs(options: EngineCommonOptions & FetchOnlyEngineOptions): string[] {
   const args: string[] = [];
   const flag = (name: string, value: string | undefined | null): void => {
     if (value != null && value !== "") args.push(name, value);
@@ -114,7 +139,11 @@ export function toEngineArgs(options: EngineCommonOptions): string[] {
   flag("--cookie-jar", options.cookieJar);
   flag("--http-cache-dir", options.httpCacheDir);
 
+  if (options.httpProxy && options.proxyFile) {
+    throw new Error("httpProxy and proxyFile are mutually exclusive");
+  }
   flag("--http-proxy", options.httpProxy);
+  flag("--proxy-file", options.proxyFile);
   flag("--proxy-bearer-token", options.proxyBearerToken);
 
   num("--http-max-concurrent", options.httpMaxConcurrent);
@@ -123,6 +152,7 @@ export function toEngineArgs(options: EngineCommonOptions): string[] {
   num("--http-timeout", options.httpTimeout);
   num("--http-max-response-size", options.httpMaxResponseSize);
   num("--ws-max-concurrent", options.wsMaxConcurrent);
+  flag("--resource-policy", options.resourcePolicy);
 
   bool("--obey-robots", options.obeyRobots);
   bool("--block-private-networks", options.blockPrivateNetworks);
@@ -142,6 +172,7 @@ export function toEngineArgs(options: EngineCommonOptions): string[] {
 
   flag("--storage-engine", options.storageEngine);
   flag("--storage-sqlite-path", options.storageSqlitePath);
+  flag("--extra-headers-file", options.extraHeadersFile);
 
   flag("--log-level", options.logLevel);
   flag("--log-format", options.logFormat);
@@ -156,5 +187,19 @@ export function toEngineArgs(options: EngineCommonOptions): string[] {
     flag(`--log-level-${channel}`, options.logLevels?.[channel]);
   }
 
+  return args;
+}
+
+/** Render options that are valid only for `koko serve`. */
+export function toServeArgs(options: KokoServeOptions): string[] {
+  const args: string[] = [];
+  const num = (name: string, value: number | undefined): void => {
+    if (value != null) args.push(name, String(value));
+  };
+  num("--cdp-thread-stack-mb", options.cdpThreadStackMb);
+  num("--worker-max-pages", options.workerMaxPages);
+  num("--worker-max-rss", options.workerMaxRss);
+  num("--resource-max-rss", options.resourceMaxRss);
+  num("--resource-max-vms", options.resourceMaxVms);
   return args;
 }

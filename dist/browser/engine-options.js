@@ -19,7 +19,11 @@ export function toEngineArgs(options) {
     flag("--cookie", options.cookie);
     flag("--cookie-jar", options.cookieJar);
     flag("--http-cache-dir", options.httpCacheDir);
+    if (options.httpProxy && options.proxyFile) {
+        throw new Error("httpProxy and proxyFile are mutually exclusive");
+    }
     flag("--http-proxy", options.httpProxy);
+    flag("--proxy-file", options.proxyFile);
     flag("--proxy-bearer-token", options.proxyBearerToken);
     num("--http-max-concurrent", options.httpMaxConcurrent);
     num("--http-max-host-open", options.httpMaxHostOpen);
@@ -27,6 +31,7 @@ export function toEngineArgs(options) {
     num("--http-timeout", options.httpTimeout);
     num("--http-max-response-size", options.httpMaxResponseSize);
     num("--ws-max-concurrent", options.wsMaxConcurrent);
+    flag("--resource-policy", options.resourcePolicy);
     bool("--obey-robots", options.obeyRobots);
     bool("--block-private-networks", options.blockPrivateNetworks);
     if (options.blockCidrs?.length)
@@ -43,6 +48,7 @@ export function toEngineArgs(options) {
     flag("--web-bot-auth-domain", options.webBotAuthDomain);
     flag("--storage-engine", options.storageEngine);
     flag("--storage-sqlite-path", options.storageSqlitePath);
+    flag("--extra-headers-file", options.extraHeadersFile);
     flag("--log-level", options.logLevel);
     flag("--log-format", options.logFormat);
     if (options.logFilterScopes?.length) {
@@ -55,6 +61,20 @@ export function toEngineArgs(options) {
     for (const channel of LOG_CHANNELS) {
         flag(`--log-level-${channel}`, options.logLevels?.[channel]);
     }
+    return args;
+}
+/** Render options that are valid only for `koko serve`. */
+export function toServeArgs(options) {
+    const args = [];
+    const num = (name, value) => {
+        if (value != null)
+            args.push(name, String(value));
+    };
+    num("--cdp-thread-stack-mb", options.cdpThreadStackMb);
+    num("--worker-max-pages", options.workerMaxPages);
+    num("--worker-max-rss", options.workerMaxRss);
+    num("--resource-max-rss", options.resourceMaxRss);
+    num("--resource-max-vms", options.resourceMaxVms);
     return args;
 }
 //# sourceMappingURL=engine-options.js.map

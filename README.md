@@ -612,6 +612,13 @@ const article = await page.extract<{ title: string }>({
 });
 ```
 
+## Architecture and isolation contract
+
+See [docs/architecture.md](docs/architecture.md) for the SDK lifecycle,
+public API, engine-option and BrowserContext isolation contracts. In particular,
+use a separate `Browser.connect()` or `Browser.launch()` connection for true
+per-identity isolation; `browser.newContext()` is a logical SDK grouping.
+
 ## Common browser interactions
 
 ```ts

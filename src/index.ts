@@ -24,6 +24,30 @@ export { definePersona, personaContextOptions } from "./browser/identity.js";
 export type { BrowserProfileInfo, Persona } from "./browser/identity.js";
 export { launchKoko } from "./browser/launch.js";
 export type { KokoLaunchOptions, LaunchedKoko } from "./browser/launch.js";
+export {
+  parseKokoVersionResponse,
+  readKokoDiagnostics,
+} from "./browser/diagnostics.js";
+export type {
+  KokoDiagnostics,
+  KokoStartupMarks,
+  KokoStartupTiming,
+  KokoVersionMetadata,
+} from "./browser/diagnostics.js";
+export {
+  KokoPool,
+  BrowserPool,
+  PoolAcquireTimeoutError,
+  PoolClosedError,
+  PoolQueueFullError,
+} from "./browser/pool/pool.js";
+export type {
+  AcquireOptions,
+  KokoPoolFactory,
+  KokoPoolLease,
+  KokoPoolOptions,
+  KokoPoolWorkerInfo,
+} from "./browser/pool/pool.js";
 export { resolveKokoInstall, defaultKokoDataRoot, listKokoInstalls } from "./koko-install.js";
 export type {
   KokoInstall,
@@ -71,8 +95,15 @@ export type {
 } from "./browser/locator.js";
 export type { ActionOptions, FillOptions, SelectOptions, SelectOptionValue } from "./browser/actions.js";
 export { KokoClient, LPClient } from "./browser/lp-client.js";
-export { toEngineArgs } from "./browser/engine-options.js";
-export type { EngineCommonOptions, LogLevel, LogChannel } from "./browser/engine-options.js";
+export { toEngineArgs, toServeArgs } from "./browser/engine-options.js";
+export type {
+  EngineCommonOptions,
+  FetchOnlyEngineOptions,
+  KokoServeOptions,
+  LogLevel,
+  LogChannel,
+  ResourcePolicy,
+} from "./browser/engine-options.js";
 export { NodeHandle } from "./browser/node-handle.js";
 export type { NodeActionOptions, NodePressOptions } from "./browser/node-handle.js";
 export { Route, RouteRegistry, matchesRoutePattern } from "./browser/route.js";

@@ -16,11 +16,18 @@ import {
   resolveFingerprintFolder,
 } from "../profile.js";
 import { resolveKokoInstall, type KokoInstallPreset } from "../koko-install.js";
-import { toEngineArgs, type EngineCommonOptions } from "./engine-options.js";
+import {
+  toEngineArgs,
+  toServeArgs,
+  type EngineCommonOptions,
+  type KokoServeOptions,
+} from "./engine-options.js";
 import { delay } from "../utils/timeout.js";
 import { ProtocolError } from "../cdp/errors.js";
+import { performance } from "node:perf_hooks";
+import { readKokoDiagnostics, type KokoDiagnostics } from "./diagnostics.js";
 
-export interface KokoLaunchOptions extends BrowserConnectOptions, EngineCommonOptions {
+export interface KokoLaunchOptions extends BrowserConnectOptions, EngineCommonOptions, KokoServeOptions {
   /** Portable `.koko-profile` bundle directory (uses `fingerprint/` inside). */
   profileBundle?: string;
   /** Installed fingerprint id under `browser/fingerprints/`, e.g. `chrome-macos-sonoma`. */
@@ -77,6 +84,8 @@ export interface LaunchedKoko {
   /** Full argv handed to the engine — useful for reproducing a run. */
   args: string[];
   process: ChildProcess;
+  /** Optional /json/version metadata and startup timing. Additive for older Core builds. */
+  diagnostics?: KokoDiagnostics;
   close(): Promise<void>;
 }
 
@@ -150,6 +159,10 @@ export async function waitForCdp(
 export async function terminateChildProcess(proc: ChildProcess, timeoutMs = 2_000): Promise<void> {
   if (proc.exitCode != null || proc.signalCode != null) return;
   const waitForExit = (): Promise<boolean> => new Promise((resolve) => {
+    if (proc.exitCode != null || proc.signalCode != null) {
+      resolve(true);
+      return;
+    }
     const timer = setTimeout(() => {
       proc.off("exit", onExit);
       resolve(false);
@@ -161,13 +174,17 @@ export async function terminateChildProcess(proc: ChildProcess, timeoutMs = 2_00
     proc.once("exit", onExit);
   });
 
+  const firstExit = waitForExit();
   proc.kill("SIGTERM");
-  if (await waitForExit()) return;
+  if (await firstExit) return;
+  const secondExit = waitForExit();
   proc.kill("SIGKILL");
-  await waitForExit();
+  await secondExit;
 }
 
 export async function launchKoko(options: KokoLaunchOptions = {}): Promise<LaunchedKoko> {
+  const launchStartedAt = Date.now();
+  const launchStartedClock = performance.now();
   const install = resolveKokoInstall(options);
   const { binary, dataRoot } = install;
   const host = options.host ?? "127.0.0.1";
@@ -215,7 +232,10 @@ export async function launchKoko(options: KokoLaunchOptions = {}): Promise<Launc
     }
   }
 
-  const args = ["serve", "--host", host, "--port", String(port)];
+  let proc: ChildProcess | undefined;
+  let browser: Browser | undefined;
+  try {
+    const args = ["serve", "--host", host, "--port", String(port)];
   if (options.advertiseHost) args.push("--advertise-host", options.advertiseHost);
   if (options.cdpMaxConnections != null) {
     args.push("--cdp-max-connections", String(options.cdpMaxConnections));
@@ -235,8 +255,9 @@ export async function launchKoko(options: KokoLaunchOptions = {}): Promise<Launc
     profile: undefined,
     profilePool: undefined,
   }));
+  args.push(...toServeArgs(options));
 
-  const proc = spawn(binary, args, {
+  const child = spawn(binary, args, {
     cwd: dataRoot,
     stdio: options.stdio ?? "ignore",
     env: {
@@ -244,16 +265,26 @@ export async function launchKoko(options: KokoLaunchOptions = {}): Promise<Launc
       KOKO_ROOT: dataRoot,
       KOKO_DATA: dataRoot,
     },
-  });
+    });
+    proc = child;
   const endpoint = `http://${host}:${port}`;
 
-  await waitForCdp(endpoint, proc, options.launchTimeout ?? 15_000);
+  await waitForCdp(endpoint, child, options.launchTimeout ?? 15_000);
+  const cdpReadyClock = performance.now();
   // Launched browsers create targets explicitly; auto-attach is unstable on koko 1.0.x.
-  const browser = await Browser.connect(endpoint, {
+  const connectedBrowser = await Browser.connect(endpoint, {
     ...options,
     enableTargetTracking: options.enableTargetTracking ?? false,
   });
-  browser.setProfileInfo({
+  browser = connectedBrowser;
+  const browserConnectedClock = performance.now();
+  const diagnostics = await readKokoDiagnostics(endpoint, {
+    launchStartedAt,
+    launchStartedClock,
+    cdpReadyClock,
+    browserConnectedClock,
+  });
+  connectedBrowser.setProfileInfo({
     source: profileId ? "remote" : options.profileBundle ? "bundle" : "local",
     name: profile,
     profileId,
@@ -265,7 +296,7 @@ export async function launchKoko(options: KokoLaunchOptions = {}): Promise<Launc
 
   let closePromise: Promise<void> | undefined;
   const launched: LaunchedKoko = {
-    browser,
+    browser: connectedBrowser,
     endpoint,
     port,
     profile,
@@ -277,12 +308,13 @@ export async function launchKoko(options: KokoLaunchOptions = {}): Promise<Launc
     dataRoot,
     installSource: install.source,
     args,
-    process: proc,
+    process: child,
+    diagnostics,
     async close() {
       if (closePromise) return closePromise;
       closePromise = (async () => {
-        await browser.close().catch(() => undefined);
-        await terminateChildProcess(proc).catch(() => undefined);
+        await connectedBrowser.close().catch(() => undefined);
+        await terminateChildProcess(child).catch(() => undefined);
         if (hydrated && kokoApi) {
           try {
             await flushRemoteSession({
@@ -300,5 +332,13 @@ export async function launchKoko(options: KokoLaunchOptions = {}): Promise<Launc
       return closePromise;
     },
   };
-  return launched;
+    return launched;
+  } catch (error) {
+    // A launch is transactional: readiness or CDP connection failures must
+    // not leave a child process or hydrated profile behind.
+    await browser?.close().catch(() => undefined);
+    if (proc) await terminateChildProcess(proc).catch(() => undefined);
+    if (hydrated) cleanupHydratedProfile(hydrated.workDir);
+    throw error;
+  }
 }

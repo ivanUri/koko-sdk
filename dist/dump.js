@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { resolveFingerprintFolder } from "./profile.js";
 import { resolveKokoInstall } from "./koko-install.js";
-import { toEngineArgs } from "./browser/engine-options.js";
+import { toEngineArgs, } from "./browser/engine-options.js";
 import { ProtocolError } from "./cdp/errors.js";
 /**
  * One-shot document dump via `koko fetch`.

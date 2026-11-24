@@ -2,7 +2,11 @@ import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { resolveFingerprintFolder } from "./profile.js";
 import { resolveKokoInstall } from "./koko-install.js";
-import { toEngineArgs, type EngineCommonOptions } from "./browser/engine-options.js";
+import {
+  toEngineArgs,
+  type EngineCommonOptions,
+  type FetchOnlyEngineOptions,
+} from "./browser/engine-options.js";
 import { ProtocolError } from "./cdp/errors.js";
 
 /**
@@ -20,7 +24,7 @@ export type StripMode = "js" | "ui" | "css" | "full";
 /** `--wait-until` events. */
 export type DumpWaitUntil = "load" | "domcontentloaded" | "networkidle" | "domstable" | "done";
 
-export interface DumpOptions extends EngineCommonOptions {
+export interface DumpOptions extends EngineCommonOptions, FetchOnlyEngineOptions {
   /** Output format (default: html). */
   format?: DumpFormat;
   /** Tag groups to remove from the dump (`--strip-mode`). */

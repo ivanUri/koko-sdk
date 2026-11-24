@@ -6,6 +6,8 @@ export { CDPError, TimeoutError, ProtocolError, NavigationError, TargetClosedErr
 export { Browser } from "./browser/browser.js";
 export { definePersona, personaContextOptions } from "./browser/identity.js";
 export { launchKoko } from "./browser/launch.js";
+export { parseKokoVersionResponse, readKokoDiagnostics, } from "./browser/diagnostics.js";
+export { KokoPool, BrowserPool, PoolAcquireTimeoutError, PoolClosedError, PoolQueueFullError, } from "./browser/pool/pool.js";
 export { resolveKokoInstall, defaultKokoDataRoot, listKokoInstalls } from "./koko-install.js";
 export { BrowserContext } from "./browser/context.js";
 export { Page } from "./browser/page.js";
@@ -13,7 +15,7 @@ export { Download } from "./browser/download.js";
 export { Frame, FrameLocator, PageFrameLocator, DeferredFrameLocator, } from "./browser/frame.js";
 export { Locator } from "./browser/locator.js";
 export { KokoClient, LPClient } from "./browser/lp-client.js";
-export { toEngineArgs } from "./browser/engine-options.js";
+export { toEngineArgs, toServeArgs } from "./browser/engine-options.js";
 export { NodeHandle } from "./browser/node-handle.js";
 export { Route, RouteRegistry, matchesRoutePattern } from "./browser/route.js";
 export { searchGoogle, buildGoogleSearchUrl, buildGoogleExtractExpression, validateGoogleExtract, GOOGLE_TTFX_EXPR, } from "./browser/google-search.js";

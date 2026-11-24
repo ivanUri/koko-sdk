@@ -1,4 +1,4 @@
-import { type EngineCommonOptions } from "./browser/engine-options.js";
+import { type EngineCommonOptions, type FetchOnlyEngineOptions } from "./browser/engine-options.js";
 /**
  * `--dump` formats accepted by `koko fetch`.
  *
@@ -11,7 +11,7 @@ export type DumpFormat = "html" | "markdown" | "semantic_tree" | "semantic_tree_
 export type StripMode = "js" | "ui" | "css" | "full";
 /** `--wait-until` events. */
 export type DumpWaitUntil = "load" | "domcontentloaded" | "networkidle" | "domstable" | "done";
-export interface DumpOptions extends EngineCommonOptions {
+export interface DumpOptions extends EngineCommonOptions, FetchOnlyEngineOptions {
     /** Output format (default: html). */
     format?: DumpFormat;
     /** Tag groups to remove from the dump (`--strip-mode`). */

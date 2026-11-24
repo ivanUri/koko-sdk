@@ -19,13 +19,15 @@ export interface EngineCommonOptions {
     cookieJar?: string;
     /** HTTP cache directory (`--http-cache-dir`). Defaults to the profile's Cache/. */
     httpCacheDir?: string;
-    /** Outbound proxy, optionally `user:pass@host:port` (`--http-proxy`). */
+    /** Outbound proxy, optionally `user:pass@host:port` (`--http-proxy`). Mutually exclusive with `proxyFile`. */
     httpProxy?: string;
+    /** File containing one proxy per line; one entry is selected at engine startup (`--proxy-file`). Mutually exclusive with `httpProxy`. */
+    proxyFile?: string;
     /** `Proxy-Authorization: Bearer <token>` (`--proxy-bearer-token`). */
     proxyBearerToken?: string;
-    /** Max concurrent HTTP requests (`--http-max-concurrent`, default 10). */
+    /** Max concurrent HTTP requests (`--http-max-concurrent`, Core default 32). */
     httpMaxConcurrent?: number;
-    /** Max open connections per host:port (`--http-max-host-open`, default 4). */
+    /** Max open connections per host:port (`--http-max-host-open`, Core default 16). */
     httpMaxHostOpen?: number;
     /** Connect timeout in ms; 0 disables (`--http-connect-timeout`). */
     httpConnectTimeout?: number;
@@ -35,6 +37,8 @@ export interface EngineCommonOptions {
     httpMaxResponseSize?: number;
     /** Max concurrent WebSocket connections (`--ws-max-concurrent`, default 8). */
     wsMaxConcurrent?: number;
+    /** Resource loading policy (`--resource-policy`). */
+    resourcePolicy?: ResourcePolicy;
     /** Fetch and obey robots.txt (`--obey-robots`). */
     obeyRobots?: boolean;
     /** Block requests to private/internal IPs after DNS resolution (`--block-private-networks`). */
@@ -84,5 +88,26 @@ export interface EngineCommonOptions {
 }
 export type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
 export type LogChannel = "js" | "core" | "network" | "protocol" | "system";
+export type ResourcePolicy = "full" | "no-images" | "no-css" | "text-only" | "defer-images";
+/** Options accepted only by the long-running `koko serve` command. */
+export interface KokoServeOptions {
+    /** Native stack reservation per CDP worker in MiB (`--cdp-thread-stack-mb`; Core default 4). */
+    cdpThreadStackMb?: number;
+    /** Recycle a CDP worker after this many browser contexts (`--worker-max-pages`; Core default 1). */
+    workerMaxPages?: number;
+    /** Recycle a CDP worker after this RSS growth in bytes (`--worker-max-rss`; Core default 2 GiB). */
+    workerMaxRss?: number;
+    /** Process-wide current RSS admission budget in bytes (`--resource-max-rss`; 0 disables it). */
+    resourceMaxRss?: number;
+    /** Process-wide current VMS admission budget in bytes (`--resource-max-vms`; 0 disables it). */
+    resourceMaxVms?: number;
+}
+/** Options accepted only by the one-shot `koko fetch` command. */
+export interface FetchOnlyEngineOptions {
+    /** UTF-8 file containing fixed request headers (`--extra-headers-file`). */
+    extraHeadersFile?: string;
+}
 /** Render shared engine options as CLI arguments, in a stable order. */
-export declare function toEngineArgs(options: EngineCommonOptions): string[];
+export declare function toEngineArgs(options: EngineCommonOptions & FetchOnlyEngineOptions): string[];
+/** Render options that are valid only for `koko serve`. */
+export declare function toServeArgs(options: KokoServeOptions): string[];
