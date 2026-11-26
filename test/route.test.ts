@@ -19,8 +19,10 @@ describe("matchesRoutePattern", () => {
   });
 
   it("matches via RegExp", () => {
-    expect(matchesRoutePattern("https://example.com/x.png", /\.png$/)).toBe(true);
-    expect(matchesRoutePattern("https://example.com/x.jpg", /\.png$/)).toBe(false);
+    const pattern = /\.png$/g;
+    expect(matchesRoutePattern("https://example.com/x.png", pattern)).toBe(true);
+    expect(matchesRoutePattern("https://example.com/x.png", pattern)).toBe(true);
+    expect(matchesRoutePattern("https://example.com/x.jpg", pattern)).toBe(false);
   });
 
   it("matches via predicate function", () => {

@@ -31,7 +31,10 @@ export class Browser {
         return this.client.newSession(url);
     }
     async newPage(url = "about:blank") {
-        const session = await this.client.newSession(url);
+        // Create a blank target first so callers can install page setup before
+        // the first real navigation. Creating it at `url` would load the page
+        // once and then navigate to it a second time below.
+        const session = await this.client.newSession("about:blank");
         const page = new Page(session);
         page.onClose(() => this._pages.delete(page));
         await page.init();

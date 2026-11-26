@@ -61,8 +61,12 @@ export function matchesRoutePattern(url, pattern) {
             return url.includes(pattern);
         return globToRegExp(pattern).test(url);
     }
-    if (pattern instanceof RegExp)
-        return pattern.test(url);
+    if (pattern instanceof RegExp) {
+        pattern.lastIndex = 0;
+        const matched = pattern.test(url);
+        pattern.lastIndex = 0;
+        return matched;
+    }
     return pattern(url);
 }
 function globToRegExp(pattern) {

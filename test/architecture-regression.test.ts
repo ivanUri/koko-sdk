@@ -5,6 +5,36 @@ import { BrowserContext } from "../src/browser/context.js";
 import type { Page } from "../src/browser/page.js";
 
 describe("browser lifecycle architecture", () => {
+  it("creates direct Browser.newPage targets blank before navigating", async () => {
+    const send = vi.fn((method: string) => {
+      if (method === "Page.getFrameTree") {
+        return Promise.resolve({ frameTree: { frame: { id: "FRAME-1", url: "about:blank" } } });
+      }
+      if (method === "Runtime.evaluate") return Promise.resolve({ result: { value: true } });
+      return Promise.resolve({});
+    });
+    const session = {
+      sessionId: "SESSION-1",
+      targetId: "TARGET-1",
+      client: { closeTarget: vi.fn().mockResolvedValue(undefined) },
+      send,
+      on: vi.fn(() => () => undefined),
+      waitFor: vi.fn().mockResolvedValue({}),
+      detach: vi.fn().mockResolvedValue(undefined),
+      markClosed: vi.fn(),
+    };
+    const client = {
+      newSession: vi.fn().mockResolvedValue(session),
+      close: vi.fn(),
+    };
+    const browser = new (Browser as unknown as new (client: unknown) => Browser)(client);
+
+    await browser.newPage("https://example.com");
+
+    expect(client.newSession).toHaveBeenCalledWith("about:blank");
+    expect(send).toHaveBeenCalledWith("Page.navigate", { url: "https://example.com" }, undefined, undefined);
+  });
+
   it("closes a Browser only once when callers race to close it", async () => {
     const client = { close: vi.fn() };
     const browser = new (Browser as unknown as new (client: unknown) => Browser)(client);

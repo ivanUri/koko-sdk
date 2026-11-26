@@ -1,4 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { Locator } from "../src/browser/locator.js";
+import type { Page } from "../src/browser/page.js";
 import {
   buildAllExpression,
   buildCountExpression,
@@ -27,6 +29,16 @@ function run<T>(expr: string): T {
 }
 
 describe("locator-query resolver", () => {
+  it("preserves nth selection through chained locator composition", () => {
+    const page = {} as Page;
+    const locator = new Locator(page, [{ kind: "css", selector: "li" }])
+      .nth(1)
+      .filter({ hasText: "item" })
+      .locator("button") as unknown as { _index?: number };
+
+    expect(locator._index).toBe(1);
+  });
+
   it("resolves by css selector", () => {
     document.body.innerHTML = `<button class="go">Go</button>`;
     const el = run<HTMLElement>(buildResolveExpression([{ kind: "css", selector: "button.go" }]));

@@ -170,6 +170,7 @@ export class BrowserContext {
     page.onClose(() => this._pages.delete(page));
     for (const script of this.initScripts) await page.addInitScript(script);
     await this.applyOptionsTo(page);
+    await this.applyStorageStateCookies(page);
     return page;
   }
 

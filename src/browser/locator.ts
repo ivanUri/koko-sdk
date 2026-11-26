@@ -58,62 +58,62 @@ export class Locator {
   ) {}
 
   locator(selector: string): Locator {
-    return new Locator(this.page, [...this.queries, { kind: "css", selector }], this.options);
+    return this.withQueries([...this.queries, { kind: "css", selector }]);
   }
 
   getByRole(role: string, options: GetByRoleOptions = {}): Locator {
-    return new Locator(this.page, [...this.queries, { kind: "role", role, name: options.name, exact: options.exact }], this.options);
+    return this.withQueries([...this.queries, { kind: "role", role, name: options.name, exact: options.exact }]);
   }
 
   getByText(text: string | RegExp, options: GetByTextOptions = {}): Locator {
-    return new Locator(this.page, [...this.queries, { kind: "text", text, exact: options.exact }], this.options);
+    return this.withQueries([...this.queries, { kind: "text", text, exact: options.exact }]);
   }
 
   getByLabel(text: string | RegExp, options: GetByTextOptions = {}): Locator {
-    return new Locator(this.page, [...this.queries, { kind: "label", text, exact: options.exact }], this.options);
+    return this.withQueries([...this.queries, { kind: "label", text, exact: options.exact }]);
   }
 
   getByPlaceholder(text: string | RegExp, options: GetByTextOptions = {}): Locator {
-    return new Locator(this.page, [...this.queries, { kind: "placeholder", text, exact: options.exact }], this.options);
+    return this.withQueries([...this.queries, { kind: "placeholder", text, exact: options.exact }]);
   }
 
   getByAltText(text: string | RegExp, options: GetByTextOptions = {}): Locator {
-    return new Locator(this.page, [...this.queries, { kind: "alt", text, exact: options.exact }], this.options);
+    return this.withQueries([...this.queries, { kind: "alt", text, exact: options.exact }]);
   }
 
   getByTitle(text: string | RegExp, options: GetByTextOptions = {}): Locator {
-    return new Locator(this.page, [...this.queries, { kind: "title", text, exact: options.exact }], this.options);
+    return this.withQueries([...this.queries, { kind: "title", text, exact: options.exact }]);
   }
 
   getByTestId(testId: string | RegExp): Locator {
-    return new Locator(this.page, [...this.queries, { kind: "testId", testId }], this.options);
+    return this.withQueries([...this.queries, { kind: "testId", testId }]);
   }
 
   filter(options: LocatorFilterOptions): Locator {
     if (options.has && options.has.page !== this.page) {
       throw new Error("locator.filter({ has }) requires a locator from the same page");
     }
-    return new Locator(this.page, [
+    return this.withQueries([
       ...this.queries,
       {
         kind: "filter",
         hasText: options.hasText,
         has: options.has?.queries,
       },
-    ], this.options);
+    ]);
   }
 
   and(locator: Locator): Locator {
     if (locator.page !== this.page) throw new Error("locator.and() requires the same page");
-    return new Locator(this.page, [...this.queries, ...locator.queries], this.options);
+    return this.withQueries([...this.queries, ...locator.queries]);
   }
 
   or(locator: Locator): Locator {
     if (locator.page !== this.page) throw new Error("locator.or() requires the same page");
-    return new Locator(this.page, [{
+    return this.withQueries([{
       kind: "union",
       branches: [this.queries, locator.queries],
-    }], this.options);
+    }]);
   }
 
   first(): Locator {
@@ -125,12 +125,18 @@ export class Locator {
   }
 
   nth(index: number): Locator {
-    const clone = new Locator(this.page, this.queries, this.options);
+    const clone = this.withQueries(this.queries);
     clone._index = index;
     return clone;
   }
 
   private _index?: number;
+
+  private withQueries(queries: LocatorQuery[]): Locator {
+    const clone = new Locator(this.page, queries, this.options);
+    clone._index = this._index;
+    return clone;
+  }
 
   private resolveOptions(): { index?: number; strict?: boolean } {
     return {

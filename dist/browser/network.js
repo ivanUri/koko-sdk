@@ -214,7 +214,12 @@ function compileMatch(match) {
     if (typeof match === "function")
         return match;
     if (match instanceof RegExp)
-        return (value) => match.test(value.url());
+        return (value) => {
+            match.lastIndex = 0;
+            const matched = match.test(value.url());
+            match.lastIndex = 0;
+            return matched;
+        };
     const regex = globToRegExp(match);
     return (value) => regex.test(value.url());
 }

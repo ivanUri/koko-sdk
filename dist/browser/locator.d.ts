@@ -49,6 +49,7 @@ export declare class Locator {
     last(): Locator;
     nth(index: number): Locator;
     private _index?;
+    private withQueries;
     private resolveOptions;
     click(options?: ActionOptions): Promise<void>;
     hover(options?: ActionOptions): Promise<void>;

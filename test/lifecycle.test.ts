@@ -71,6 +71,23 @@ describe("event wait lifecycle", () => {
       expect.objectContaining({ timeout: 1000, predicate: expect.any(Function) }),
     );
   });
+
+  it("filters load events by the requested frame", async () => {
+    let waitOptions: any;
+    const session = {
+      waitFor: vi.fn((_event: string, options: unknown) => {
+        waitOptions = options;
+        return Promise.resolve({});
+      }),
+      send: vi.fn(),
+    } as unknown as CDPSession;
+    const waiter = new PageWaiter(session, { waitForIdle: vi.fn() } as never);
+
+    await waiter.waitForNavigation({ waitUntil: "load", frameId: "MAIN" });
+
+    expect(waitOptions.predicate({ frameId: "CHILD" })).toBe(false);
+    expect(waitOptions.predicate({ frameId: "MAIN" })).toBe(true);
+  });
 });
 
 describe("Page close lifecycle", () => {

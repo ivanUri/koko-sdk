@@ -37,17 +37,29 @@ export class PageWaiter {
     const timeout = options.timeout ?? 30_000;
 
     if (waitUntil === "domcontentloaded") {
-      await this.session.waitFor("Page.domContentEventFired", { timeout, signal: options.signal });
+      await this.session.waitFor<LifecycleEvent>("Page.domContentEventFired", {
+        timeout,
+        signal: options.signal,
+        predicate: (event) => this.matchesFrame(event, options.frameId),
+      });
       return;
     }
     if (waitUntil === "load") {
-      await this.session.waitFor("Page.loadEventFired", { timeout, signal: options.signal });
+      await this.session.waitFor<LifecycleEvent>("Page.loadEventFired", {
+        timeout,
+        signal: options.signal,
+        predicate: (event) => this.matchesFrame(event, options.frameId),
+      });
       return;
     }
     // Stable snapshots start after load so parser/resource pauses do not look
     // like a completed visual state. DOM stability intentionally ignores
     // background network activity.
-    await this.session.waitFor("Page.loadEventFired", { timeout, signal: options.signal }).catch(() => undefined);
+    await this.session.waitFor<LifecycleEvent>("Page.loadEventFired", {
+      timeout,
+      signal: options.signal,
+      predicate: (event) => this.matchesFrame(event, options.frameId),
+    }).catch(() => undefined);
     if (waitUntil === "domstable") {
       await this.waitForDomStable(options.domStableMs ?? 500, timeout, options.signal);
       return;
@@ -189,6 +201,10 @@ export class PageWaiter {
         if (pollingMs == null) interval = Math.min(Math.round(interval * 1.4), 100);
       }
     })(), { timeout, label });
+  }
+
+  private matchesFrame(event: LifecycleEvent, frameId?: string): boolean {
+    return frameId == null || event.frameId == null || event.frameId === frameId;
   }
 }
 

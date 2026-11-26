@@ -139,6 +139,21 @@ describe("BrowserContext options", () => {
     });
   });
 
+  it("restores storageState cookies for pages attached through waitForPage()", async () => {
+    const { fakePage, sent } = createFakeBrowser();
+    const fakeBrowser = {
+      waitForPage: vi.fn().mockResolvedValue(fakePage),
+      releaseContext: vi.fn(),
+    } as unknown as Browser;
+    const ctx = new BrowserContext(fakeBrowser, {
+      storageState: { cookies: [{ name: "sid", value: "abc", domain: "example.com" }], origins: [] },
+    });
+
+    await ctx.waitForPage();
+
+    expect(sent.filter((entry) => entry.method === "Network.setCookies")).toHaveLength(1);
+  });
+
   it("storageState() aggregates context-wide cookies with per-open-page localStorage", async () => {
     const { fakeBrowser } = createFakeBrowser();
     const ctx = new BrowserContext(fakeBrowser);

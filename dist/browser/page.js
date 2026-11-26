@@ -157,6 +157,7 @@ export class Page {
             frameId: this.mainFrameId,
         });
         waitPromise.catch(() => undefined);
+        const documentGenerationBefore = this.documentGeneration;
         try {
             let result;
             try {
@@ -186,7 +187,10 @@ export class Page {
             }
             if (result.frameId)
                 this.mainFrameId = result.frameId;
-            this.currentPageUrl = url;
+            // Preserve a URL already reported by frameNavigated (for example after
+            // a redirect). The fallback supports runtimes that omit that event.
+            if (this.documentGeneration === documentGenerationBefore)
+                this.currentPageUrl = url;
             await waitPromise;
             return {
                 response: navigationResponse,
@@ -474,8 +478,13 @@ export class Page {
             if (selector.url != null) {
                 if (typeof selector.url === "string" && candidate.url !== selector.url)
                     return false;
-                if (selector.url instanceof RegExp && !selector.url.test(candidate.url))
-                    return false;
+                if (selector.url instanceof RegExp) {
+                    selector.url.lastIndex = 0;
+                    const matched = selector.url.test(candidate.url);
+                    selector.url.lastIndex = 0;
+                    if (!matched)
+                        return false;
+                }
             }
             return true;
         }) ?? null;
