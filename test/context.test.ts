@@ -38,6 +38,7 @@ function createFakeBrowser() {
       if (expr.includes("localStorage")) return [{ name: "k", value: "v" }];
       return undefined;
     }),
+    close: vi.fn().mockResolvedValue(undefined),
   };
 
   const fakeBrowser = {
@@ -152,6 +153,24 @@ describe("BrowserContext options", () => {
     await ctx.waitForPage();
 
     expect(sent.filter((entry) => entry.method === "Network.setCookies")).toHaveLength(1);
+  });
+
+  it("retries storageState cookie restore after a transient CDP failure", async () => {
+    const { fakeBrowser, fakeSession } = createFakeBrowser();
+    let attempts = 0;
+    fakeSession.send.mockImplementation(async (method: string, params?: unknown) => {
+      if (method === "Network.setCookies" && attempts++ === 0) {
+        throw new Error("temporary CDP failure");
+      }
+      return {};
+    });
+    const ctx = new BrowserContext(fakeBrowser, {
+      storageState: { cookies: [{ name: "sid", value: "abc", domain: "example.com" }], origins: [] },
+    });
+
+    await expect(ctx.newPage()).rejects.toThrow("temporary CDP failure");
+    await expect(ctx.newPage()).resolves.toBeDefined();
+    expect(attempts).toBe(2);
   });
 
   it("storageState() aggregates context-wide cookies with per-open-page localStorage", async () => {

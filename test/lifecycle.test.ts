@@ -88,6 +88,33 @@ describe("event wait lifecycle", () => {
     expect(waitOptions.predicate({ frameId: "CHILD" })).toBe(false);
     expect(waitOptions.predicate({ frameId: "MAIN" })).toBe(true);
   });
+
+  it("scopes reload lifecycle waits to the current main frame", async () => {
+    let lifecycleWaitOptions: any;
+    const session = {
+      targetId: "TARGET-1",
+      client: { closeTarget: vi.fn().mockResolvedValue(undefined) },
+      on: vi.fn(() => () => undefined),
+      waitFor: vi.fn((event: string, options: unknown) => {
+        if (event === "Page.loadEventFired") lifecycleWaitOptions = options;
+        return Promise.resolve({});
+      }),
+      send: vi.fn((method: string) => {
+        if (method === "Page.getFrameTree") {
+          return Promise.resolve({ frameTree: { frame: { id: "MAIN", url: "https://example.com" } } });
+        }
+        return Promise.resolve({});
+      }),
+      detach: vi.fn().mockResolvedValue(undefined),
+      markClosed: vi.fn(),
+    } as unknown as CDPSession;
+    const page = new Page(session);
+
+    await page.reload({ waitUntil: "load" });
+
+    expect(lifecycleWaitOptions.predicate({ frameId: "CHILD" })).toBe(false);
+    expect(lifecycleWaitOptions.predicate({ frameId: "MAIN" })).toBe(true);
+  });
 });
 
 describe("Page close lifecycle", () => {

@@ -35,6 +35,36 @@ describe("browser lifecycle architecture", () => {
     expect(send).toHaveBeenCalledWith("Page.navigate", { url: "https://example.com" }, undefined, undefined);
   });
 
+  it("closes and untracks a page when its initial navigation fails", async () => {
+    const closeTarget = vi.fn().mockResolvedValue(undefined);
+    const detach = vi.fn().mockResolvedValue(undefined);
+    const send = vi.fn((method: string) => {
+      if (method === "Page.navigate") return Promise.reject(new Error("navigation failed"));
+      if (method === "Page.getFrameTree") {
+        return Promise.resolve({ frameTree: { frame: { id: "FRAME-1", url: "about:blank" } } });
+      }
+      return Promise.resolve({});
+    });
+    const session = {
+      sessionId: "SESSION-1",
+      targetId: "TARGET-1",
+      client: { closeTarget },
+      send,
+      on: vi.fn(() => () => undefined),
+      waitFor: vi.fn().mockResolvedValue({}),
+      detach,
+      markClosed: vi.fn(),
+    };
+    const client = { newSession: vi.fn().mockResolvedValue(session), close: vi.fn() };
+    const browser = new (Browser as unknown as new (client: unknown) => Browser)(client);
+
+    await expect(browser.newPage("https://example.com")).rejects.toThrow("navigation failed");
+
+    expect(browser.pages()).toHaveLength(0);
+    expect(closeTarget).toHaveBeenCalledOnce();
+    expect(detach).toHaveBeenCalledOnce();
+  });
+
   it("closes a Browser only once when callers race to close it", async () => {
     const client = { close: vi.fn() };
     const browser = new (Browser as unknown as new (client: unknown) => Browser)(client);

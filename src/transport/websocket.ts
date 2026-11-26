@@ -49,11 +49,24 @@ export class WebSocketTransport {
   }
 
   static async connect(endpoint: string, options: WebSocketTransportOptions = {}): Promise<WebSocketTransport> {
-    const wsEndpoint = await resolveWebSocketEndpoint(endpoint);
+    const wsEndpoint = await resolveWebSocketEndpoint(endpoint, options.defaultTimeout);
     const socket = new WebSocket(wsEndpoint);
     await new Promise<void>((resolve, reject) => {
-      socket.once("open", resolve);
-      socket.once("error", reject);
+      const cleanup = () => {
+        socket.off("open", onOpen);
+        socket.off("error", onError);
+      };
+      const onOpen = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = (error: Error) => {
+        cleanup();
+        socket.close();
+        reject(error);
+      };
+      socket.once("open", onOpen);
+      socket.once("error", onError);
     });
     return new WebSocketTransport(socket, options);
   }
@@ -208,10 +221,19 @@ export class WebSocketTransport {
   }
 }
 
-async function resolveWebSocketEndpoint(endpoint: string): Promise<string> {
+async function resolveWebSocketEndpoint(endpoint: string, timeoutMs = 30_000): Promise<string> {
   if (endpoint.startsWith("ws://") || endpoint.startsWith("wss://")) return endpoint;
   const base = endpoint.replace(/\/$/, "");
-  const res = await fetch(`${base}/json/version`);
+  const controller = new AbortController();
+  const timer = timeoutMs > 0 && Number.isFinite(timeoutMs)
+    ? setTimeout(() => controller.abort(), timeoutMs)
+    : undefined;
+  let res: Response;
+  try {
+    res = await fetch(`${base}/json/version`, { signal: controller.signal });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
   if (!res.ok) throw new Error(`Unable to resolve CDP endpoint: ${res.status} ${res.statusText}`);
   const json = await res.json() as { webSocketDebuggerUrl?: string };
   if (!json.webSocketDebuggerUrl) throw new Error("CDP /json/version did not include webSocketDebuggerUrl");

@@ -374,7 +374,7 @@ export class Page {
     async reload(options = {}) {
         await this.init();
         this.network.reset();
-        const waitPromise = this.waiter.waitForNavigation(options);
+        const waitPromise = this.waiter.waitForNavigation({ ...options, frameId: this.mainFrameId });
         waitPromise.catch(() => undefined);
         await this.session.send("Page.reload", { ignoreCache: false }, options.timeout, options.signal);
         await waitPromise;
@@ -627,7 +627,7 @@ export class Page {
     async historyStep(delta, options = {}) {
         await this.init();
         this.network.reset();
-        const waitPromise = this.waiter.waitForNavigation(options);
+        const waitPromise = this.waiter.waitForNavigation({ ...options, frameId: this.mainFrameId });
         waitPromise.catch(() => undefined);
         await this.evaluate(delta === -1 ? "history.back()" : "history.forward()");
         await waitPromise;

@@ -37,11 +37,17 @@ export class Browser {
         const session = await this.client.newSession("about:blank");
         const page = new Page(session);
         page.onClose(() => this._pages.delete(page));
-        await page.init();
-        if (url !== "about:blank")
-            await page.goto(url);
         this._pages.add(page);
-        return page;
+        try {
+            await page.init();
+            if (url !== "about:blank")
+                await page.goto(url);
+            return page;
+        }
+        catch (error) {
+            await page.close().catch(() => undefined);
+            throw error;
+        }
     }
     pages() {
         return [...this._pages];
@@ -58,9 +64,15 @@ export class Browser {
         const session = await this.client.attachToTarget(targetId);
         const page = new Page(session);
         page.onClose(() => this._pages.delete(page));
-        await page.init();
         this._pages.add(page);
-        return page;
+        try {
+            await page.init();
+            return page;
+        }
+        catch (error) {
+            await page.close().catch(() => undefined);
+            throw error;
+        }
     }
     newContext(options = {}) {
         const context = new BrowserContext(this, options);

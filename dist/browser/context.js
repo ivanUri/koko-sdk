@@ -32,11 +32,17 @@ export class BrowserContext {
         for (const script of this.initScripts) {
             await page.addInitScript(script);
         }
-        await this.applyOptionsTo(page);
-        await this.applyStorageStateCookies(page);
-        if (url !== "about:blank")
-            await page.goto(url);
-        return page;
+        try {
+            await this.applyOptionsTo(page);
+            await this.applyStorageStateCookies(page);
+            if (url !== "about:blank")
+                await page.goto(url);
+            return page;
+        }
+        catch (error) {
+            await page.close().catch(() => undefined);
+            throw error;
+        }
     }
     async cookies(urls) {
         const page = await this.ensurePage();
@@ -107,11 +113,17 @@ export class BrowserContext {
         const page = await this.browser.waitForPage(options);
         this._pages.add(page);
         page.onClose(() => this._pages.delete(page));
-        for (const script of this.initScripts)
-            await page.addInitScript(script);
-        await this.applyOptionsTo(page);
-        await this.applyStorageStateCookies(page);
-        return page;
+        try {
+            for (const script of this.initScripts)
+                await page.addInitScript(script);
+            await this.applyOptionsTo(page);
+            await this.applyStorageStateCookies(page);
+            return page;
+        }
+        catch (error) {
+            await page.close().catch(() => undefined);
+            throw error;
+        }
     }
     async close() {
         if (this.closePromise)
@@ -163,11 +175,11 @@ export class BrowserContext {
     async applyStorageStateCookies(page) {
         if (this.storageStateCookiesApplied)
             return;
-        this.storageStateCookiesApplied = true;
         const cookies = this.opts.storageState?.cookies;
         if (cookies?.length) {
             await page.session.send("Network.setCookies", { cookies });
         }
+        this.storageStateCookiesApplied = true;
     }
     async ensurePage() {
         const existing = this._pages.values().next().value;
